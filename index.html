@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Drive - Layyah</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'%3E%3Crect width='240' height='240' rx='52' fill='%230A0A0A'/%3E%3Cpath d='M120 190C120 190 76 138 76 100C76 75.7 95.7 56 120 56C144.3 56 164 75.7 164 100C164 138 120 190 120 190Z' fill='%23FFFFFF'/%3E%3Ccircle cx='120' cy='100' r='20' fill='%230A0A0A'/%3E%3Cpath d='M60 160 L94 160' stroke='%23FFFFFF' stroke-width='9' stroke-linecap='round'/%3E%3Cpath d='M46 176 L84 176' stroke='%23FFFFFF' stroke-width='9' stroke-linecap='round' opacity='0.5'/%3E%3C/svg%3E">
+    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map-root { position: fixed; inset: 0; z-index: 0; display: none; }
+        #map-root.visible { display: block; }
+        .leaflet-pane, .leaflet-control { z-index: 1 !important; }
+        .div-pin-icon { background: none; border: none; }
+        .div-car-icon { background: none; border: none; }
+        :root { --uber-black: #000000; --uber-gray: #f6f6f6; --text-main: #222222; --text-light: #757575; --border: #efefef; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: var(--uber-gray); color: var(--text-main); overflow-x: hidden; }
+
+        .map-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #e8eaed; z-index: 0; overflow: hidden; }
+        .map-grid { position: absolute; inset: 0; background-image: linear-gradient(#ffffff 2px, transparent 2px), linear-gradient(90deg, #ffffff 2px, transparent 2px); background-size: 80px 80px; }
+        .map-road-main { position: absolute; background: #ffffff; box-shadow: 0 0 10px rgba(0,0,0,0.05); z-index: 1; }
+        .map-block { position: absolute; background: #f1f3f4; border-radius: 4px; z-index: 0; }
+        .map-park { position: absolute; background: #d8e6c4; border-radius: 8px; z-index: 0; }
+        .map-water { position: absolute; background: #b3d4f1; border-radius: 8px; z-index: 0; }
+
+        .map-marker { position: absolute; transform: translate(-50%, -50%); transition: all 1s linear; z-index: 10; }
+        .marker-pin svg { display:block; }
+        .car-icon { width: 36px; height: 36px; background: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.3); border: 2px solid #fff; }
+        .pulse-ring { position: absolute; width: 40px; height: 40px; background: rgba(0,0,0,0.2); border-radius: 50%; transform: translate(-50%, -50%); animation: pulseAnim 2s infinite; z-index: 5; }
+        @keyframes pulseAnim { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.5; } 100% { transform: translate(-50%, -50%) scale(2); opacity: 0; } }
+
+        .bottom-sheet { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; border-radius: 16px 16px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); z-index: 20; max-width: 500px; left: 50%; transform: translateX(-50%); max-height: 80vh; overflow-y: auto; }
+        .sheet-handle { width: 40px; height: 4px; background: #ddd; border-radius: 2px; margin: 12px auto; }
+        .uber-btn { background: var(--uber-black); color: #fff; padding: 16px; border-radius: 8px; width: 100%; font-weight: 500; font-size: 16px; border: none; cursor: pointer; transition: 0.2s; }
+        .uber-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .uber-btn:hover:not(:disabled) { background: #333; }
+        .uber-btn-outline { background: #fff; color:#000; border: 1px solid #000; }
+        .input-group { display: flex; align-items: center; background: var(--uber-gray); padding: 14px 16px; border-radius: 8px; margin-bottom: 12px; }
+        .input-group select, .input-group input { background: transparent; border: none; outline: none; width: 100%; font-size: 15px; color: var(--text-main); }
+        .plain-input { width:100%;padding:16px;border:1px solid #eee;border-radius:8px;margin-bottom:12px;font-size:16px; }
+
+        .slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { transform: translate(-50%, 100%); } to { transform: translate(-50%, 0); } }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        table { width: 100%; border-collapse: collapse; }
+        .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .table-scroll table { min-width: 640px; }
+        th { text-align: left; padding: 16px; color: var(--text-light); border-bottom: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+        td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 14px; white-space: nowrap; }
+        tr:hover { background: #fafafa; }
+        .err { color:#c0392b; font-size:13px; margin-bottom:12px; }
+        .nav-tab { padding: 6px 16px; font-size: 14px; border: none; background: transparent; cursor: pointer; border-radius: 16px; color: #757575; }
+        .tab-active { background: #000; color: #fff; }
+        .gender-pill { flex:1; padding:12px; text-align:center; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; border:2px solid transparent; }
+        .sos-btn { background:#c0392b; color:#fff; padding:14px; border-radius:8px; width:100%; font-weight:700; font-size:15px; border:none; cursor:pointer; letter-spacing:0.3px; }
+        .sos-btn:hover { background:#a52d20; }
+        .link-btn { background:none; border:none; color:#757575; text-decoration:underline; cursor:pointer; font-size:13px; }
+        @media (max-width: 420px) {
+            .brand-text { display: none; }
+            .nav-tab { padding: 6px 10px !important; font-size: 13px !important; }
+        }
+    </style>
+</head>
+<body>
+    <div id="map-root"></div>
+    <div id="app"></div>
+
+    <script>
+    // ================== CONFIG ==================
+    const SUPABASE_URL = "https://kwnvnmjfraymmdpeccmr.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3bnZubWpmcmF5bW1kcGVjY21yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyMzQ0ODUsImV4cCI6MjEwMDgxMDQ4NX0.ftnpnjeZ0-fB8HetW9XM2l0MeotkYq-QZwcHffQ34Do";
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const LOCATIONIQ_KEY = "pk.9824ee6bf1f64d312429c30965b97e6f";
+
+    // Real coordinates around Layyah, Punjab, Pakistan (used since no maps/geocoding API is connected yet)
+    const PLACES = {
+        "Layyah Bus Stand": { lat: 30.9642, lng: 70.9432 },
+        "Chowk Azam": { lat: 30.9765, lng: 70.6641 },
+        "Fatehpur": { lat: 30.9491, lng: 71.0298 },
+        "Karor Lal Esan": { lat: 31.2225, lng: 70.9575 },
+        "Choubara": { lat: 30.6484, lng: 70.8907 },
+        "DHQ Hospital Layyah": { lat: 30.9601, lng: 70.9411 },
+        "Government College Layyah": { lat: 30.9678, lng: 70.9455 },
+        "Layyah Railway Station": { lat: 30.9598, lng: 70.9389 }
+    };
+    // ================== REAL MAP (Leaflet + LocationIQ) ==================
+    // The map lives in #map-root, OUTSIDE the #app div that render() rewrites on every
+    // state change. This means the Leaflet instance is created ONCE and only updated
+    // in place afterwards (setView / marker.setLatLng) — never destroyed and rebuilt,
+    // which keeps tile requests (and cost) down and avoids flicker on every re-render.
+    let leafletMap = null;
+    let mapMarkers = { pickup: null, dropoff: null, driver: null };
+
+    function ensureMap() {
+        const root = document.getElementById('map-root');
+        root.classList.add('visible');
+        if (leafletMap) return leafletMap;
+        leafletMap = L.map('map-root', { zoomControl: false, attributionControl: true });
+        L.tileLayer(`https://{s}-tiles.locationiq.com/v3/streets/r/{z}/{x}/{y}.png?key=${LOCATIONIQ_KEY}`, {
+            attribution: '&copy; LocationIQ &copy; OpenStreetMap contributors',
+            subdomains: 'abc',
+            maxZoom: 19
+        }).addTo(leafletMap);
+        leafletMap.setView([30.9642, 70.9432], 13); // Layyah default center
+        return leafletMap;
+    }
+    function hideMap() {
+        const root = document.getElementById('map-root');
+        if (root) root.classList.remove('visible');
+    }
+    function pinDivIcon(color, label) {
+        return L.divIcon({
+            className: 'div-pin-icon',
+            html: `<div style="width:26px;height:26px;background:${color};border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+            iconSize: [26, 26], iconAnchor: [13, 26]
+        });
+    }
+    function carDivIcon(vehicleType) {
+        return L.divIcon({
+            className: 'div-car-icon',
+            html: `<div style="width:34px;height:34px;background:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,0.3);">${vIcon(vehicleType)}</div>`,
+            iconSize: [34, 34], iconAnchor: [17, 17]
+        });
+    }
+    // Updates markers in place for the active ride's tracking view.
+    function syncTrackingMap(r) {
+        const map = ensureMap();
+        if (mapMarkers.rideId !== r.id) { mapMarkers.rideId = r.id; mapMarkers._fitted = false; }
+        const pts = [];
+        if (r.pickup_lat && r.pickup_lng) {
+            const ll = [r.pickup_lat, r.pickup_lng];
+            if (!mapMarkers.pickup) mapMarkers.pickup = L.marker(ll, { icon: pinDivIcon('#000') }).addTo(map);
+            else mapMarkers.pickup.setLatLng(ll);
+            pts.push(ll);
+        }
+        if (r.dropoff_lat && r.dropoff_lng) {
+            const ll = [r.dropoff_lat, r.dropoff_lng];
+            if (!mapMarkers.dropoff) mapMarkers.dropoff = L.marker(ll, { icon: pinDivIcon('#333') }).addTo(map);
+            else mapMarkers.dropoff.setLatLng(ll);
+            pts.push(ll);
+        }
+        if (r.status !== 'searching' && r.driver_lat && r.driver_lng) {
+            const ll = [r.driver_lat, r.driver_lng];
+            if (!mapMarkers.driver) mapMarkers.driver = L.marker(ll, { icon: carDivIcon(r.vehicle_type) }).addTo(map);
+            else mapMarkers.driver.setLatLng(ll);
+            pts.push(ll);
+        } else if (mapMarkers.driver) {
+            map.removeLayer(mapMarkers.driver);
+            mapMarkers.driver = null;
+        }
+        if (pts.length && !mapMarkers._fitted) {
+            map.fitBounds(pts, { padding: [60, 60], maxZoom: 16 });
+            mapMarkers._fitted = true;
+        } else if (pts.length === 1) {
+            map.setView(pts[0], 15);
+        }
+    }
+    function clearTrackingMap() {
+        if (mapMarkers.pickup) { leafletMap && leafletMap.removeLayer(mapMarkers.pickup); mapMarkers.pickup = null; }
+        if (mapMarkers.dropoff) { leafletMap && leafletMap.removeLayer(mapMarkers.dropoff); mapMarkers.dropoff = null; }
+        if (mapMarkers.driver) { leafletMap && leafletMap.removeLayer(mapMarkers.driver); mapMarkers.driver = null; }
+        mapMarkers.rideId = null; mapMarkers._fitted = false;
+        hideMap();
+    }
+
+    const Icons = {
+        car: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>',
+        bike: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/></svg>',
+        rickshaw: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20 14h-2V7H6v7H4V4H2v12h2v2h2v-2h12v2h2v-2h2v-2h-2zM8 14V9h8v5H8z"/></svg>',
+        pin: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#000"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>',
+        user: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>',
+        shield: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>',
+        star: '<svg width="16" height="16" viewBox="0 0 24 24" fill="#000"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>'
+    };
+    function vIcon(v){ return v==='bike'?Icons.bike : v==='rickshaw'?Icons.rickshaw : Icons.car; }
+
+    // ================== I18N (core flows; expand as needed) ==================
+    const STR = {
+        en: {
+            ride:'Ride', drive:'Drive', admin:'Admin',
+            rideTitle:'Ride with Go Drive', driveTitle:'Drive with Go Drive',
+            loginSub:'Log in to continue', signupSub:'Create your account',
+            fullName:'Full Name', phone:'Phone Number', email:'Email', password:'Password',
+            createAccount:'Create Account', logIn:'Log In', noAccount:'No account?', haveAccount:'Already have an account?',
+            signUp:'Sign up', logInLink:'Log in',
+            iAm:'I am', male:'Male', female:'Female',
+            whereTo:'Where to?', chooseRide:'Choose a ride', driverPref:'Driver preference',
+            either:'Either', femaleDriver:'Female driver', maleDriver:'Male driver',
+            confirm:'Confirm', logout:'Logout', welcome:'Welcome',
+            youOnline:'You are online', youOffline:'You are offline',
+            goOnline:'Go Online', goOffline:'Go Offline', liveRequests:'Live Requests',
+            goOnlineToSee:'Go online to see ride requests', waitingRequests:'Waiting for requests...',
+            accept:'Accept', history:'Ride history', earnings:'Earnings',
+            searching:'Searching for a driver...', accepted:'Driver is on the way',
+            arrived:'Driver has arrived', inProgress:'On trip', completed:'Trip completed', cancelled:'Ride cancelled'
+        },
+        ur: {
+            ride:'رائیڈ', drive:'ڈرائیو', admin:'ایڈمن',
+            rideTitle:'گو ڈرائیو کے ساتھ سفر کریں', driveTitle:'گو ڈرائیو کے ساتھ ڈرائیو کریں',
+            loginSub:'جاری رکھنے کے لیے لاگ اِن کریں', signupSub:'اپنا اکاؤنٹ بنائیں',
+            fullName:'پورا نام', phone:'فون نمبر', email:'ای میل', password:'پاسورڈ',
+            createAccount:'اکاؤنٹ بنائیں', logIn:'لاگ اِن', noAccount:'اکاؤنٹ نہیں ہے؟', haveAccount:'پہلے سے اکاؤنٹ ہے؟',
+            signUp:'سائن اپ', logInLink:'لاگ اِن کریں',
+            iAm:'میں ہوں', male:'مرد', female:'عورت',
+            whereTo:'کہاں جانا ہے؟', chooseRide:'رائیڈ منتخب کریں', driverPref:'ڈرائیور کی ترجیح',
+            either:'کوئی بھی', femaleDriver:'خاتون ڈرائیور', maleDriver:'مرد ڈرائیور',
+            confirm:'تصدیق کریں', logout:'لاگ آؤٹ', welcome:'خوش آمدید',
+            youOnline:'آپ آن لائن ہیں', youOffline:'آپ آف لائن ہیں',
+            goOnline:'آن لائن ہوں', goOffline:'آف لائن ہوں', liveRequests:'موجودہ درخواستیں',
+            goOnlineToSee:'رائیڈ درخواستیں دیکھنے کے لیے آن لائن ہوں', waitingRequests:'درخواستوں کا انتظار ہے...',
+            accept:'قبول کریں', history:'رائیڈ کی تاریخ', earnings:'کمائی',
+            searching:'ڈرائیور تلاش کیا جا رہا ہے...', accepted:'ڈرائیور راستے میں ہے',
+            arrived:'ڈرائیور پہنچ گیا ہے', inProgress:'سفر جاری ہے', completed:'سفر مکمل ہوا', cancelled:'رائیڈ منسوخ ہوئی'
+        }
+    };
+    function t(key) { return (STR[state.lang] && STR[state.lang][key]) || STR.en[key] || key; }
+
+    // ================== APP STATE ==================
+    const ADMIN_LINK_REQUESTED = new URLSearchParams(location.search).has('admin');
+    let state = {
+        view: ADMIN_LINK_REQUESTED ? 'admin' : 'rider',
+        session: null,
+        profile: null,
+        loadingAuth: true,
+        lang: 'en',
+        fareSettings: [],
+        appContent: {},
+        cities: []
+    };
+    // The Admin tab in the top nav is only shown to people who arrived via the
+    // secret ?admin link, or who are already signed in as an admin. Everyone
+    // else just sees Ride / Drive, so the admin login isn't publicly advertised.
+    function adminTabVisible() { return ADMIN_LINK_REQUESTED || state.view === 'admin' || state.profile?.role === 'admin'; }
+    let riderState = { screen: 'auth', authMode:'login', form:{}, err:'', vehicle:'car',
+        pickup:'Layyah Bus Stand', pickupLat: PLACES['Layyah Bus Stand'].lat, pickupLng: PLACES['Layyah Bus Stand'].lng,
+        dropoff:'Chowk Azam', dropoffLat: PLACES['Chowk Azam'].lat, dropoffLng: PLACES['Chowk Azam'].lng,
+        pickupSuggestions:null, dropoffSuggestions:null, pickupDebounce:null, dropoffDebounce:null,
+        fare:300, genderPref:'any', loading:false, activeRide:null, rideChannel:null, ratingDraft:{stars:0, comment:''}, sosSent:false, onlineCount:null, searchTick:null, history:null };
+    let driverState = { screen: 'auth', authMode:'login', form:{}, err:'', rides:[], searchChannel:null, watchId:null, online:false, activeRide:null, rideChannel:null, ratingDraft:{stars:0, comment:''}, verify:{form:{}, files:{}, err:'', loading:false}, sosSent:false, history:null, earnings:null, headingTo:null, withdrawals:null, wdForm:{} };
+    let adminState = { screen:'auth', authMode:'login', form:{}, err:'', tab:'overview', rides:[], drivers:[], cities:[], sosAlerts:[], sosChannel:null, withdrawals:[], reviewDriver:null, reviewDocs:null, reviewNotes:'', reviewErr:'', reviewLoading:false, users:[], fareSettings:[], content:{}, userMsg:'', fareMsg:'', contentMsg:'', cityMsg:'', adminMsg:'', newCity:{name:'',province:''}, newAdmin:{email:'',managed_city_id:''} };
+    function cityName(id) { const c = adminState.cities.find(c => c.id === id); return c ? c.name : id; }
+
+    // ================== AUTH HELPERS ==================
+    async function refreshSession() {
+        const { data } = await sb.auth.getSession();
+        state.session = data.session;
+        if (state.session) {
+            const { data: profile } = await sb.from('profiles').select('*').eq('id', state.session.user.id).single();
+            state.profile = profile;
+        } else {
+            state.profile = null;
+        }
+        state.loadingAuth = false;
+    }
+
+    let passwordResetMode = false;
+    sb.auth.onAuthStateChange((_event, session) => {
+        state.session = session;
+        if (_event === 'PASSWORD_RECOVERY') { passwordResetMode = true; render(); return; }
+        if (session) {
+            sb.from('profiles').select('*').eq('id', session.user.id).single().then(({data}) => {
+                state.profile = data;
+                render();
+            });
+        } else {
+            state.profile = null;
+            render();
+        }
+    });
+
+    // Sends the user a password-reset email via Supabase's own recovery flow.
+    // `role` picks which login form's email field to read from (rider/driver/admin).
+    async function requestPasswordReset(role) {
+        const target = role === 'admin' ? adminState : (role === 'rider' ? riderState : driverState);
+        const email = target.form.email;
+        if (!email) { target.err = 'Enter your email above first, then tap "Forgot password?"'; target.resetMsg=''; render(); return; }
+        target.err = ''; target.resetMsg = 'Sending...'; render();
+        const redirectTo = window.location.origin + window.location.pathname + (role === 'admin' ? '?admin&reset=1' : '?reset=1');
+        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+        if (error) { target.err = error.message; target.resetMsg=''; }
+        else { target.resetMsg = `If an account exists for ${email}, a password reset link has been sent. Check your email.`; }
+        render();
+    }
+
+    function renderPasswordResetScreen() {
+        return `
+            <div style="padding:80px 16px 16px;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;">
+                <div class="fade-in" style="max-width:400px;width:100%;">
+                    <h2 style="font-size:24px;font-weight:700;margin-bottom:8px;">Set a new password</h2>
+                    <p style="color:#757575;margin-bottom:24px;">Choose a new password for your account.</p>
+                    ${window.__pwResetErr ? `<div class="err">${window.__pwResetErr}</div>` : ''}
+                    <input type="password" id="pw-reset-new" class="plain-input" placeholder="New password">
+                    <input type="password" id="pw-reset-confirm" class="plain-input" placeholder="Confirm new password">
+                    <button onclick="submitNewPassword()" class="uber-btn">Save new password</button>
+                </div>
+            </div>
+        `;
+    }
+
+    async function submitNewPassword() {
+        const pw1 = document.getElementById('pw-reset-new').value;
+        const pw2 = document.getElementById('pw-reset-confirm').value;
+        if (!pw1 || pw1.length < 8) { window.__pwResetErr = 'Password must be at least 8 characters.'; render(); return; }
+        if (pw1 !== pw2) { window.__pwResetErr = 'Passwords do not match.'; render(); return; }
+        window.__pwResetErr = '';
+        const { error } = await sb.auth.updateUser({ password: pw1 });
+        if (error) { window.__pwResetErr = error.message; render(); return; }
+        passwordResetMode = false;
+        alert('Password updated. You are now logged in.');
+        render();
+    }
+
+    async function doSignUp(target, email, password, fullName, role, phone, gender, emergencyName, emergencyPhone) {
+        target.err = '';
+        const city_id = await detectCityId();
+        const { data, error } = await sb.auth.signUp({
+            email, password,
+            options: { data: {
+                full_name: fullName, role, phone, gender,
+                emergency_contact_name: emergencyName || null,
+                emergency_contact_phone: emergencyPhone || null,
+                city_id
+            } }
+        });
+        if (error) { target.err = error.message; render(); return; }
+        if (data.session) { await refreshSession(); render(); }
+        else { target.err = 'Check your email to confirm your account, then log in.'; target.authMode='login'; render(); }
+    }
+
+    // Best-effort region detection: matches the browser's geolocation against active cities' bounding boxes.
+    // Falls back to 'layyah' (today's only active city) if location is unavailable or outside any known city.
+    async function detectCityId() {
+        try {
+            const { data: cities } = await sb.from('cities').select('*').eq('is_active', true);
+            if (!cities || cities.length === 0) return 'layyah';
+            if (!navigator.geolocation) return 'layyah';
+            const pos = await new Promise((resolve) => {
+                navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { timeout: 4000 });
+            });
+            if (!pos) return 'layyah';
+            const { latitude, longitude } = pos.coords;
+            const match = cities.find(c => {
+                const b = c.bounds;
+                if (!b) return false;
+                return latitude >= b.minLat && latitude <= b.maxLat && longitude >= b.minLng && longitude <= b.maxLng;
+            });
+            return match ? match.id : 'layyah';
+        } catch (e) {
+            return 'layyah';
+        }
+    }
+
+    async function doSignIn(target, email, password, requiredRole) {
+        target.err = '';
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) { target.err = error.message; render(); return; }
+        const { data: profile } = await sb.from('profiles').select('*').eq('id', data.user.id).single();
+        if (requiredRole && profile?.role !== requiredRole) {
+            target.err = `This account is registered as "${profile?.role}", not "${requiredRole}".`;
+            await sb.auth.signOut();
+            render(); return;
+        }
+        state.session = data.session; state.profile = profile;
+        render();
+    }
+
+    async function doSignOut() {
+        if (state.profile?.role === 'driver') {
+            await sb.from('profiles').update({ is_online: false }).eq('id', state.session.user.id);
+        }
+        await sb.auth.signOut();
+        render();
+    }
+
+    // ================== RENDER SHELL ==================
+    function render() {
+        const app = document.getElementById('app');
+        if (passwordResetMode) { app.innerHTML = renderPasswordResetScreen(); return; }
+        // Capture whatever input/textarea is currently focused (and its cursor position
+        // and unsaved value) before we tear down and rebuild the whole page's HTML.
+        // Without this, a background fetch resolving mid-keystroke would wipe out
+        // anything the person had just typed.
+        const activeEl = document.activeElement;
+        let activeCapture = null;
+        if (activeEl && activeEl.id && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+            activeCapture = { id: activeEl.id, value: activeEl.value, selStart: null, selEnd: null };
+            // Reading selectionStart/selectionEnd throws for input types like
+            // email/number/date — those simply don't support cursor selection.
+            // Guard it so the whole render() doesn't crash when one of those is focused.
+            try { activeCapture.selStart = activeEl.selectionStart; activeCapture.selEnd = activeEl.selectionEnd; } catch (e) {}
+        }
+        // The "Where to?" panel scrolls internally. Since it's a brand new DOM
+        // node every render(), its scroll position resets to the top by default —
+        // capture it here and restore it below so clicking anything (a preset
+        // chip, a vehicle, etc.) doesn't visually snap the panel back up.
+        const prevSheet = document.querySelector('.bottom-sheet');
+        const prevScrollTop = prevSheet ? prevSheet.scrollTop : 0;
+        let html = `
+            <nav style="position:fixed;top:0;left:0;width:100%;background:#fff;z-index:50;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <svg width="28" height="28" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="240" height="240" rx="52" fill="#0A0A0A"/>
+                        <path d="M120 190C120 190 76 138 76 100C76 75.7 95.7 56 120 56C144.3 56 164 75.7 164 100C164 138 120 190 120 190Z" fill="#FFFFFF"/>
+                        <circle cx="120" cy="100" r="20" fill="#0A0A0A"/>
+                        <path d="M60 160 L94 160" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+                        <path d="M46 176 L84 176" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" opacity="0.5"/>
+                    </svg>
+                    <h1 class="brand-text" style="font-size:18px;font-weight:800;letter-spacing:-0.5px;white-space:nowrap;">Go Drive</h1>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <button onclick="state.lang = state.lang==='en'?'ur':'en'; render();" style="background:#f6f6f6;border:none;border-radius:14px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;color:#444;white-space:nowrap;">${state.lang==='en' ? 'اردو' : 'EN'}</button>
+                    <div style="display:flex;gap:4px;background:#f6f6f6;padding:4px;border-radius:20px;">
+                        <button onclick="setView('rider')" class="nav-tab ${state.view==='rider'?'tab-active':''}">${t('ride')}</button>
+                        <button onclick="setView('driver')" class="nav-tab ${state.view==='driver'?'tab-active':''}">${t('drive')}</button>
+                        ${adminTabVisible() ? `<button onclick="setView('admin')" class="nav-tab ${state.view==='admin'?'tab-active':''}">${t('admin')}</button>` : ''}
+                    </div>
+                </div>
+            </nav>
+        `;
+        if (state.view === 'rider') html += renderRider();
+        if (state.view === 'driver') html += renderDriver();
+        if (state.view === 'admin') html += renderAdmin();
+        if (state.view === 'privacy') html += renderPrivacyPolicy();
+        app.innerHTML = html;
+        const newSheet = document.querySelector('.bottom-sheet');
+        if (newSheet && prevScrollTop) newSheet.scrollTop = prevScrollTop;
+        if (activeCapture) {
+            const el = document.getElementById(activeCapture.id);
+            if (el) {
+                // Only re-apply the captured value if the freshly-rendered element didn't
+                // already carry a newer value from state (avoids clobbering real updates).
+                if (el.value === '' || el.value == null) el.value = activeCapture.value;
+                el.focus({ preventScroll: true });
+                if (typeof activeCapture.selStart === 'number' && el.setSelectionRange) {
+                    try { el.setSelectionRange(activeCapture.selStart, activeCapture.selEnd); } catch(e) {}
+                }
+            }
+        }
+        syncMapForCurrentScreen();
+        restoreInputFocus();
+    }
+    // render() rebuilds the whole page's HTML, which would normally steal focus from
+    // whatever input the person is typing in. This puts focus (and the cursor) back
+    // on the active address field immediately after each re-render.
+    function restoreInputFocus() {
+        if (!riderState.activeField) return;
+        const el = document.getElementById('addr-' + riderState.activeField);
+        if (el && document.activeElement !== el) { el.focus({ preventScroll: true }); const len = el.value.length; el.setSelectionRange(len, len); }
+    }
+    function syncMapForCurrentScreen() {
+        const activeRide = state.view === 'rider' ? riderState.activeRide : state.view === 'driver' ? driverState.activeRide : null;
+        if (activeRide && (state.view === 'rider' || state.view === 'driver')) {
+            syncTrackingMap(activeRide);
+        } else if (state.view === 'rider' && state.session && state.profile?.role === 'rider' && riderState.screen !== 'history') {
+            syncBookingPreviewMap();
+        } else {
+            clearTrackingMap();
+        }
+    }
+    function syncBookingPreviewMap() {
+        const map = ensureMap();
+        const pts = [];
+        if (riderState.pickupLat) {
+            const ll = [riderState.pickupLat, riderState.pickupLng];
+            if (!mapMarkers.pickup) mapMarkers.pickup = L.marker(ll, { icon: pinDivIcon('#000') }).addTo(map);
+            else mapMarkers.pickup.setLatLng(ll);
+            pts.push(ll);
+        }
+        if (riderState.dropoffLat) {
+            const ll = [riderState.dropoffLat, riderState.dropoffLng];
+            if (!mapMarkers.dropoff) mapMarkers.dropoff = L.marker(ll, { icon: pinDivIcon('#333') }).addTo(map);
+            else mapMarkers.dropoff.setLatLng(ll);
+            pts.push(ll);
+        }
+        if (mapMarkers.driver) { map.removeLayer(mapMarkers.driver); mapMarkers.driver = null; }
+        if (pts.length === 2) map.fitBounds(pts, { padding: [80, 250] });
+        else if (pts.length === 1) map.setView(pts[0], 14);
+    }
+    function setView(view) { state.view = view; render(); if(view==='admin' && state.profile?.role==='admin') loadAdminData(); }
+
+    function renderPrivacyPolicy() {
+        const custom = state.appContent['privacy_policy_terms'];
+        return `
+            <div style="padding:80px 16px 40px;min-height:100vh;background:#fff;">
+                <div style="max-width:640px;margin:0 auto;">
+                    <button onclick="state.view='rider';render()" class="link-btn" style="margin-bottom:16px;">&larr; Back</button>
+                    <h2 style="font-size:24px;font-weight:700;margin-bottom:4px;">Privacy Policy &amp; Terms of Use</h2>
+                    <p style="color:#757575;font-size:13px;margin-bottom:24px;">Last updated: ${new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' })}</p>
+                    ${custom && custom.trim() ? `<div style="font-size:14px;color:#444;line-height:1.7;white-space:pre-wrap;">${custom.replace(/</g,'&lt;')}</div>` : `
+                    <h3 style="font-size:16px;font-weight:700;margin:20px 0 8px;">1. Information We Collect</h3>
+                    <p style="font-size:14px;color:#444;line-height:1.6;">We collect information you provide directly: full name, phone number, email address, and for drivers, CNIC number, driving license number, vehicle details, and photographs of identity/vehicle documents. We also collect location data (pickup/dropoff points and, for drivers, live GPS location while online or on a trip) and ride history.</p>
+                    <h3 style="font-size:16px;font-weight:700;margin:20px 0 8px;">2. How We Use Information</h3>
+                    <p style="font-size:14px;color:#444;line-height:1.6;">Information is used to: match riders with drivers, verify driver identity and eligibility, calculate fares, provide live trip tracking, respond to safety alerts (see Section 5), and improve the service. Driver identity documents are used solely for verification and are visible only to platform administrators.</p>
+                    <h3 style="font-size:16px;font-weight:700;margin:20px 0 8px;">3. Information Sharing Between Users</h3>
+                    <p style="font-size:14px;color:#444;line-height:1.6;">When a ride is matched, the rider and driver can see each other's name and phone number for the duration of that ride. Riders may optionally indicate a gender preference for their driver; this preference and the driver's gender are used only for matching and are not shared beyond what's needed to fulfil the request.</p>
+                    <h3 style="font-size:16px;font-weight:700;margin:20px 0 8px;">4. Data Storage &amp; Security</h3>
+                    <p style="font-size:14px;color:#444;line-height:1.6;">Data is stored with Supabase and access is restricted using row-level security so that riders, drivers, and administrators only see what's necessary for their role. Identity documents are stored in a private file store not directly accessible via a public link.</p>
+                    <h3 style="font-size:16px;font-weight:700;margin:20px 0 8px;">5. Emergency / SOS Alerts</h3>
+                    <p style="font-size:14px;color:#444;line-height:1.6;">The in-app SOS button creates a timestamped alert visible to platform administrators, including your name, phone, approximate location, and any emergency contact you provided. <strong>This alert is not automatically sent as an SMS or phone call to your emergency contact or to emergency services, and administrators may not see it immediately.</strong> For a genuine emergency, always contact local emergency services directly first.</p>
+                    <h3 style="font-size:16px;font-weight:700;margin:20px 0 8px;">6. Your Rights</h3>
+                    <p style="font-size:14px;color:#444;line-height:1.6;">You may request access to, correction of, or deletion of your personal data by contacting the platform administrator. Deleting your account will remove your profile but ride history linked to completed trips may be retained for legal, financial, and dispute-resolution purposes.</p>
+                    <h3 style="font-size:16px;font-weight:700;margin:20px 0 8px;">7. Limitation of Liability</h3>
+                    <p style="font-size:14px;color:#444;line-height:1.6;">Go Drive is a platform connecting independent riders and drivers. We do not employ drivers and are not responsible for their conduct, though we take reasonable steps to verify identity via the driver verification process. Use of the service, including the SOS feature, does not guarantee any particular response time or outcome.</p>
+                    <h3 style="font-size:16px;font-weight:700;margin:20px 0 8px;">8. Contact</h3>
+                    <p style="font-size:14px;color:#444;line-height:1.6;">For privacy questions or data requests, contact the platform administrator through the in-app support channel.</p>
+                    `}
+                </div>
+            </div>
+        `;
+    }
+
+    // ================== RIDER ==================
+    function renderRider() {
+        if (!state.session || state.profile?.role !== 'rider') return renderRiderAuth();
+        if (riderState.screen === 'history') return renderHistory('rider');
+        if (riderState.activeRide) return renderTrackingScreen(riderState.activeRide, 'rider');
+        if (riderState.onlineCount === null) fetchOnlineDriverCount();
+
+        const vehicles = state.fareSettings.length ? state.fareSettings.map(f => ({
+            id: f.vehicle_type, name: f.label,
+            desc: f.vehicle_type === 'bike' ? '1-2 mins' : f.vehicle_type === 'rickshaw' ? '3-5 mins' : '5-8 mins',
+            price: Number(f.base_fare)
+        })) : [
+            { id: 'bike', name: 'Bike', desc: '1-2 mins', price: 120 },
+            { id: 'rickshaw', name: 'Rickshaw', desc: '3-5 mins', price: 180 },
+            { id: 'car', name: 'Go', desc: '5-8 mins', price: 300 }
+        ];
+        return `
+            <div class="bottom-sheet slide-up">
+                <div class="sheet-handle"></div>
+                <div style="padding: 8px 24px 32px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                        <h2 style="font-size:24px;font-weight:700;">${t('whereTo')}</h2>
+                        <div style="text-align:right;">
+                            <button onclick="openHistory('rider')" style="font-size:13px;color:#000;background:none;border:none;cursor:pointer;text-decoration:underline;display:block;margin-bottom:4px;">${t('history')}</button>
+                            <button onclick="doSignOut()" style="font-size:13px;color:#757575;background:none;border:none;cursor:pointer;">${t('logout')} (${state.profile.full_name})</button>
+                        </div>
+                    </div>
+                    ${riderState.onlineCount === 0 ? `<div style="background:#fff7f7;border:1px solid #f3d6d6;color:#8a2f2f;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;">No drivers are online in your area right now. You can still book — we'll match you as soon as one comes online.</div>` : ''}
+                    ${riderState.onlineCount != null && riderState.onlineCount > 0 ? `<div style="color:#1a8a3d;font-size:13px;margin-bottom:16px;">${riderState.onlineCount} driver${riderState.onlineCount===1?'':'s'} online nearby</div>` : ''}
+                    ${renderAddressField('pickup')}
+                    ${renderAddressField('dropoff')}
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:-6px 0 16px;">
+                        ${Object.keys(PLACES).slice(0,5).map(p => `<button onclick="pickPreset(riderState.activeField || 'pickup', '${p.replace(/'/g,"\\'")}')" style="background:#f6f6f6;border:none;border-radius:14px;padding:5px 12px;font-size:12px;color:#444;cursor:pointer;">${p}</button>`).join('')}
+                    </div>
+                    <div style="margin:24px 0 12px;font-weight:600;font-size:16px;">${t('chooseRide')}</div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        ${vehicles.map(v => `
+                            <div onclick="riderState.vehicle='${v.id}';riderState.fare=${v.price};render()" style="display:flex;align-items:center;padding:12px;border-radius:8px;cursor:pointer; border: 2px solid ${riderState.vehicle===v.id?'#000':'transparent'}; background:${riderState.vehicle===v.id?'#f6f6f6':'transparent'};">
+                                <div style="margin-right:16px;">${vIcon(v.id)}</div>
+                                <div style="flex:1;"><div style="font-weight:600;font-size:16px;">${v.name}</div><div style="color:#757575;font-size:13px;">${v.desc}</div></div>
+                                <div style="font-weight:600;">Rs ${v.price}</div>
+                            </div>`).join('')}
+                    </div>
+                    ${riderState.vehicle ? `
+                        <div style="margin:16px 0;background:#f6f6f6;padding:16px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;">
+                            <div>
+                                <div style="font-weight:600;font-size:14px;">Your offer</div>
+                                <div style="font-size:12px;color:#757575;">Nearby drivers can accept this or offer their own price</div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <button onclick="adjustFare(-20)" style="width:32px;height:32px;border-radius:50%;border:1px solid #ddd;background:#fff;font-size:18px;cursor:pointer;">−</button>
+                                <div style="font-weight:700;font-size:18px;min-width:56px;text-align:center;">Rs ${riderState.fare}</div>
+                                <button onclick="adjustFare(20)" style="width:32px;height:32px;border-radius:50%;border:1px solid #ddd;background:#fff;font-size:18px;cursor:pointer;">+</button>
+                            </div>
+                        </div>
+                    ` : ''}
+                    <div style="margin:20px 0 8px;font-weight:600;font-size:14px;">${t('driverPref')}</div>
+                    <div style="display:flex;gap:8px;margin-bottom:8px;">
+                        <div onclick="riderState.genderPref='any';render()" class="gender-pill" style="border-color:${riderState.genderPref==='any'?'#000':'#eee'};background:${riderState.genderPref==='any'?'#f6f6f6':'#fff'};">${t('either')}</div>
+                        <div onclick="riderState.genderPref='female';render()" class="gender-pill" style="border-color:${riderState.genderPref==='female'?'#000':'#eee'};background:${riderState.genderPref==='female'?'#f6f6f6':'#fff'};">${t('femaleDriver')}</div>
+                        <div onclick="riderState.genderPref='male';render()" class="gender-pill" style="border-color:${riderState.genderPref==='male'?'#000':'#eee'};background:${riderState.genderPref==='male'?'#f6f6f6':'#fff'};">${t('maleDriver')}</div>
+                    </div>
+                    <div style="font-size:12px;color:#757575;margin-bottom:12px;">${riderState.genderPref!=='any' ? 'Wait times may be longer while we grow the pool of ' + riderState.genderPref + ' drivers.' : 'We will match you with the next available driver.'}</div>
+                    ${riderState.err ? `<div class="err">${riderState.err}</div>` : ''}
+                    <button onclick="bookRide()" class="uber-btn" style="margin-top:24px;" ${riderState.loading?'disabled':''}>
+                        ${riderState.loading ? 'Booking...' : `${t('confirm')} ${(vehicles.find(v=>v.id===riderState.vehicle) || vehicles[0] || {name:'ride'}).name}`}
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderRiderAuth() { return renderAuthScreen(riderState, 'rider', 'Ride with Go Drive'); }
+    function renderDriverAuthScreen() { return renderAuthScreen(driverState, 'driver', 'Drive with Go Drive'); }
+
+    // ================== ADDRESS AUTOCOMPLETE (LocationIQ) ==================
+    function renderAddressField(field) {
+        const isPickup = field === 'pickup';
+        const value = riderState[field];
+        return `
+            <div style="position:relative;margin-bottom:12px;">
+                <div class="input-group" style="margin-bottom:0;">
+                    <div style="margin-right:12px;">${isPickup ? Icons.pin : `<div style="width:20px;height:20px;background:#000;border-radius:4px;"></div>`}</div>
+                    <input type="text" id="addr-${field}" value="${value.replace(/"/g,'&quot;')}" placeholder="${isPickup ? 'Pickup location' : 'Where to?'}"
+                        oninput="onAddressInput('${field}', this.value)"
+                        onfocus="riderState.activeField='${field}'"
+                        style="background:transparent;border:none;outline:none;width:100%;font-size:15px;">
+                </div>
+                <div id="sugg-${field}">${renderSuggestionsBox(field)}</div>
+            </div>
+        `;
+    }
+    function renderSuggestionsBox(field) {
+        const suggestions = riderState[field + 'Suggestions'];
+        if (suggestions && suggestions.length > 0) {
+            return `
+                <div style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #eee;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.1);z-index:10;max-height:220px;overflow-y:auto;margin-top:4px;">
+                    ${suggestions.map((s, i) => `
+                        <div onclick="selectSuggestion('${field}', ${i})" style="padding:12px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f6f6f6;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='#fff'">${s.display_name}</div>
+                    `).join('')}
+                </div>
+            `;
+        } else if (suggestions && suggestions.length === 0 && riderState[field + 'Query']) {
+            return `<div style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #eee;border-radius:8px;padding:12px 14px;font-size:13px;color:#999;margin-top:4px;z-index:10;">No matches — try the quick picks below</div>`;
+        }
+        return '';
+    }
+    // Updates only the suggestions dropdown DOM node, never the input itself,
+    // so the on-screen keyboard doesn't flicker/jump on every keystroke.
+    function renderSuggestionsOnly(field) {
+        const el = document.getElementById('sugg-' + field);
+        if (el) el.innerHTML = renderSuggestionsBox(field);
+    }
+    function onAddressInput(field, query) {
+        riderState[field] = query;
+        riderState[field + 'Query'] = query;
+        riderState.activeField = field;
+        const debounceKey = field + 'Debounce';
+        if (riderState[debounceKey]) clearTimeout(riderState[debounceKey]);
+        if (query.trim().length < 3) { riderState[field + 'Suggestions'] = null; renderSuggestionsOnly(field); return; }
+        riderState[debounceKey] = setTimeout(() => fetchAddressSuggestions(field, query), 450);
+    }
+    async function fetchAddressSuggestions(field, query) {
+        try {
+            let url = `https://api.locationiq.com/v1/autocomplete?key=${LOCATIONIQ_KEY}&q=${encodeURIComponent(query)}&countrycodes=pk&limit=5&format=json`;
+            const city = state.cities.find(c => c.id === state.profile?.city_id);
+            if (city && city.bounds) {
+                const b = city.bounds;
+                // viewbox = left(minLng),top(maxLat),right(maxLng),bottom(minLat) — bounded=1 restricts results to inside this box
+                url += `&viewbox=${b.minLng},${b.maxLat},${b.maxLng},${b.minLat}&bounded=1`;
+            }
+            const res = await fetch(url);
+            const data = await res.json();
+            riderState[field + 'Suggestions'] = Array.isArray(data) ? data : [];
+        } catch (e) {
+            riderState[field + 'Suggestions'] = [];
+        }
+        renderSuggestionsOnly(field);
+    }
+    function selectSuggestion(field, index) {
+        const s = riderState[field + 'Suggestions'][index];
+        if (!s) return;
+        riderState[field] = s.display_name;
+        riderState[field + 'Lat'] = parseFloat(s.lat);
+        riderState[field + 'Lng'] = parseFloat(s.lon);
+        riderState[field + 'Suggestions'] = null;
+        render();
+    }
+    function pickPreset(field, name) {
+        const p = PLACES[name];
+        if (!p) return;
+        riderState[field] = name;
+        riderState[field + 'Lat'] = p.lat;
+        riderState[field + 'Lng'] = p.lng;
+        riderState[field + 'Suggestions'] = null;
+        render();
+    }
+
+    // ================== RIDE HISTORY (shared) ==================
+    function openHistory(who) {
+        const target = who === 'rider' ? riderState : driverState;
+        target.screen = 'history';
+        target.history = null;
+        render();
+        const col = who === 'rider' ? 'rider_id' : 'driver_id';
+        sb.from('rides').select('*').eq(col, state.session.user.id).in('status', ['completed', 'cancelled'])
+            .order('created_at', { ascending: false }).limit(50).then(({ data }) => {
+                target.history = data || [];
+                render();
+            });
+    }
+    function closeHistory(who) {
+        const target = who === 'rider' ? riderState : driverState;
+        target.screen = who === 'rider' ? 'book' : 'dash';
+        render();
+    }
+
+    // ================== DRIVER EARNINGS ==================
+    function openEarnings() {
+        driverState.screen = 'earnings';
+        driverState.earnings = null;
+        driverState.withdrawals = null;
+        render();
+        sb.from('rides').select('fare,driver_earning,created_at').eq('driver_id', state.session.user.id).eq('status', 'completed')
+            .order('created_at', { ascending: false }).then(({ data }) => {
+                driverState.earnings = data || [];
+                render();
+            });
+        sb.from('withdrawal_requests').select('*').eq('driver_id', state.session.user.id)
+            .order('requested_at', { ascending: false }).then(({ data }) => {
+                driverState.withdrawals = data || [];
+                render();
+            });
+    }
+    function closeEarnings() { driverState.screen = 'dash'; render(); }
+    function renderEarnings() {
+        const rows = driverState.earnings;
+        const withdrawals = driverState.withdrawals;
+        if (rows === null || withdrawals === null) {
+            return `<div style="padding:80px 16px 16px;min-height:100vh;background:#fff;text-align:center;color:#757575;">Loading...</div>`;
+        }
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfWeek = new Date(startOfDay); startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay());
+        const sum = (list) => list.reduce((s, r) => s + Number(r.driver_earning || r.fare * 0.8), 0);
+        const today = rows.filter(r => new Date(r.created_at) >= startOfDay);
+        const week = rows.filter(r => new Date(r.created_at) >= startOfWeek);
+        const totalEarned = sum(rows);
+        const claimed = withdrawals.filter(w => w.status !== 'rejected').reduce((s, w) => s + Number(w.amount), 0);
+        const available = Math.max(0, totalEarned - claimed);
+        const f = driverState.wdForm;
+        return `
+            <div style="padding:80px 16px 16px;min-height:100vh;background:#fff;">
+                <div style="max-width:500px;margin:0 auto;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                        <h2 style="font-size:22px;font-weight:700;">Earnings</h2>
+                        <button onclick="closeEarnings()" class="link-btn">Back</button>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                        <div style="background:#f6f6f6;padding:18px;border-radius:8px;">
+                            <div style="font-size:12px;color:#757575;">Today</div>
+                            <div style="font-size:20px;font-weight:700;margin-top:4px;">Rs ${sum(today).toFixed(0)}</div>
+                            <div style="font-size:11px;color:#999;margin-top:2px;">${today.length} ride${today.length===1?'':'s'}</div>
+                        </div>
+                        <div style="background:#f6f6f6;padding:18px;border-radius:8px;">
+                            <div style="font-size:12px;color:#757575;">This Week</div>
+                            <div style="font-size:20px;font-weight:700;margin-top:4px;">Rs ${sum(week).toFixed(0)}</div>
+                            <div style="font-size:11px;color:#999;margin-top:2px;">${week.length} ride${week.length===1?'':'s'}</div>
+                        </div>
+                        <div style="background:#000;color:#fff;padding:18px;border-radius:8px;grid-column:1/3;">
+                            <div style="font-size:12px;color:#ccc;">All Time</div>
+                            <div style="font-size:26px;font-weight:700;margin-top:4px;">Rs ${totalEarned.toFixed(0)}</div>
+                            <div style="font-size:11px;color:#999;margin-top:2px;">${rows.length} completed ride${rows.length===1?'':'s'}</div>
+                        </div>
+                    </div>
+                    <div style="font-size:12px;color:#999;text-align:center;margin-bottom:20px;">Earnings reflect 80% of fare after the platform's 20% commission.</div>
+
+                    <div style="border-top:1px solid #eee;padding-top:20px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                            <div style="font-weight:600;font-size:15px;">Available to withdraw</div>
+                            <div style="font-weight:700;font-size:18px;">Rs ${available.toFixed(0)}</div>
+                        </div>
+                        ${driverState.wdErr ? `<div class="err">${driverState.wdErr}</div>` : ''}
+                        <input id="wd-amount" class="plain-input" type="number" placeholder="Amount (Rs)" value="${f.amount || ''}" oninput="driverState.wdForm.amount=this.value">
+                        <div style="display:flex;gap:8px;margin-bottom:12px;">
+                            <div onclick="driverState.wdForm.method='jazzcash';render()" class="gender-pill" style="border-color:${f.method==='jazzcash'?'#000':'#eee'};background:${f.method==='jazzcash'?'#f6f6f6':'#fff'};">JazzCash</div>
+                            <div onclick="driverState.wdForm.method='easypaisa';render()" class="gender-pill" style="border-color:${f.method==='easypaisa'?'#000':'#eee'};background:${f.method==='easypaisa'?'#f6f6f6':'#fff'};">Easypaisa</div>
+                        </div>
+                        <input id="wd-account" class="plain-input" placeholder="Account number" value="${f.account || ''}" oninput="driverState.wdForm.account=this.value">
+                        <button onclick="requestWithdrawal(${available})" class="uber-btn">Request Withdrawal</button>
+                    </div>
+
+                    ${withdrawals.length > 0 ? `
+                        <div style="margin-top:24px;">
+                            <div style="font-weight:600;font-size:14px;margin-bottom:10px;">Withdrawal history</div>
+                            ${withdrawals.map(w => `
+                                <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #eee;border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+                                    <div>
+                                        <div style="font-weight:600;font-size:14px;">Rs ${w.amount}</div>
+                                        <div style="font-size:12px;color:#757575;text-transform:capitalize;">${w.method} · ${new Date(w.requested_at).toLocaleDateString()}</div>
+                                    </div>
+                                    <span style="background:${w.status==='pending'?'#fff6e0':w.status==='paid'?'#e6f6ea':'#fdeaea'};color:${w.status==='pending'?'#8a6d1a':w.status==='paid'?'#1a8a3d':'#c0392b'};padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;text-transform:capitalize;">${w.status}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+    async function requestWithdrawal(available) {
+        const f = driverState.wdForm;
+        const amount = parseFloat(f.amount);
+        driverState.wdErr = '';
+        if (!amount || amount <= 0) { driverState.wdErr = 'Enter a valid amount.'; render(); return; }
+        if (amount > available) { driverState.wdErr = `You can withdraw at most Rs ${available.toFixed(0)}.`; render(); return; }
+        if (!f.method) { driverState.wdErr = 'Choose JazzCash or Easypaisa.'; render(); return; }
+        if (!f.account) { driverState.wdErr = 'Enter your account number.'; render(); return; }
+        const { error } = await sb.from('withdrawal_requests').insert({
+            driver_id: state.session.user.id, amount, method: f.method, account_number: f.account, city_id: state.profile.city_id
+        });
+        if (error) { driverState.wdErr = error.message; render(); return; }
+        driverState.wdForm = {};
+        openEarnings();
+    }
+    function renderHistory(who) {
+        const target = who === 'rider' ? riderState : driverState;
+        const rides = target.history;
+        return `
+            <div style="padding:80px 16px 16px;min-height:100vh;background:#fff;">
+                <div style="max-width:500px;margin:0 auto;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                        <h2 style="font-size:22px;font-weight:700;">Ride History</h2>
+                        <button onclick="closeHistory('${who}')" class="link-btn">Back</button>
+                    </div>
+                    ${rides === null ? `<div style="color:#757575;text-align:center;padding:32px;">Loading...</div>` :
+                        rides.length === 0 ? `<div style="background:#f6f6f6;padding:32px;border-radius:8px;text-align:center;color:#757575;">No past rides yet.</div>` :
+                        rides.map(r => `
+                            <div style="border:1px solid #eee;border-radius:8px;padding:16px;margin-bottom:10px;">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                                    <span style="font-weight:700;">Rs ${r.fare}</span>
+                                    <span style="font-size:12px;color:${r.status==='completed'?'#1a8a3d':'#c0392b'};text-transform:capitalize;font-weight:600;">${r.status}</span>
+                                </div>
+                                <div style="font-size:13px;color:#757575;margin-bottom:4px;">${r.pickup_address} → ${r.dropoff_address}</div>
+                                <div style="font-size:12px;color:#999;">${new Date(r.created_at).toLocaleString()}${who==='rider' && r.rating ? ` · You rated ★ ${r.rating}` : ''}${who==='driver' && r.driver_rating ? ` · Rider rated you ★ ${r.driver_rating}` : ''}</div>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+            </div>
+        `;
+    }
+
+    async function fetchOnlineDriverCount() {
+        riderState.onlineCount = -1; // loading marker
+        render();
+        const { count } = await sb.from('profiles').select('id', { count: 'exact', head: true })
+            .eq('role', 'driver').eq('city_id', state.profile.city_id).eq('is_online', true).eq('is_verified', true);
+        riderState.onlineCount = count ?? 0;
+        render();
+    }
+
+    function renderAuthScreen(target, role, title) {
+        const isSignup = target.authMode === 'signup';
+        const titleText = role === 'rider' ? t('rideTitle') : t('driveTitle');
+        return `
+            <div style="padding:80px 16px 16px;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;">
+                <div class="fade-in" style="max-width:400px;width:100%;">
+                    <h2 style="font-size:28px;font-weight:700;margin-bottom:8px;">${titleText}</h2>
+                    <p style="color:#757575;margin-bottom:24px;">${isSignup ? t('signupSub') : t('loginSub')}</p>
+                    ${target.err ? `<div class="err">${target.err}</div>` : ''}
+                    ${isSignup ? `<input id="auth-${role}-name" class="plain-input" placeholder="${t('fullName')}" value="${(target.form.name||'').replace(/"/g,'&quot;')}" oninput="${role}State.form.name=this.value">` : ''}
+                    ${isSignup ? `<input id="auth-${role}-phone" class="plain-input" placeholder="${t('phone')}" value="${(target.form.phone||'').replace(/"/g,'&quot;')}" oninput="${role}State.form.phone=this.value">` : ''}
+                    <input id="auth-${role}-email" type="email" autocomplete="${isSignup ? 'email' : 'username'}" class="plain-input" placeholder="${t('email')}" value="${(target.form.email||'').replace(/"/g,'&quot;')}" oninput="${role}State.form.email=this.value">
+                    <input id="auth-${role}-password" type="password" autocomplete="${isSignup ? 'new-password' : 'current-password'}" class="plain-input" placeholder="${t('password')}" value="${(target.form.password||'').replace(/"/g,'&quot;')}" oninput="${role}State.form.password=this.value">
+                    ${!isSignup ? `<p style="text-align:right;margin:-4px 0 12px;"><button onclick="requestPasswordReset('${role}')" style="color:#757575;background:none;border:none;cursor:pointer;text-decoration:underline;font-size:13px;">Forgot password?</button></p>` : ''}
+                    ${target.resetMsg ? `<div style="color:#1a7f37;font-size:13px;margin-bottom:12px;">${target.resetMsg}</div>` : ''}
+                    ${isSignup ? `
+                        <div style="font-size:13px;color:#757575;margin-bottom:8px;">${t('iAm')}</div>
+                        <div style="display:flex;gap:8px;margin-bottom:12px;">
+                            <div id="gender-pill-${role}-male" onclick="selectSignupGender('${role}','male')" class="gender-pill" style="border-color:${target.form.gender==='male'?'#000':'#eee'};background:${target.form.gender==='male'?'#f6f6f6':'#fff'};">${t('male')}</div>
+                            <div id="gender-pill-${role}-female" onclick="selectSignupGender('${role}','female')" class="gender-pill" style="border-color:${target.form.gender==='female'?'#000':'#eee'};background:${target.form.gender==='female'?'#f6f6f6':'#fff'};">${t('female')}</div>
+                        </div>
+                        ${role === 'driver' ? `<div style="font-size:12px;color:#757575;margin:-4px 0 12px;">Female drivers can choose to only accept rides from female riders when booking permits it.</div>` : ''}
+                        <div style="font-size:13px;color:#757575;margin-bottom:8px;">Emergency contact (used only if you trigger the SOS button)</div>
+                        <input id="auth-${role}-emname" class="plain-input" placeholder="Emergency contact name (optional)" value="${(target.form.emergencyName||'').replace(/"/g,'&quot;')}" oninput="${role}State.form.emergencyName=this.value">
+                        <input id="auth-${role}-emphone" class="plain-input" placeholder="Emergency contact phone (optional)" value="${(target.form.emergencyPhone||'').replace(/"/g,'&quot;')}" oninput="${role}State.form.emergencyPhone=this.value">
+                    ` : ''}
+                    <button onclick="submitAuth('${role}')" class="uber-btn">${isSignup ? t('createAccount') : t('logIn')}</button>
+                    <p style="text-align:center;font-size:14px;color:#757575;margin-top:24px;">
+                        ${isSignup ? t('haveAccount') : t('noAccount')}
+                        <button onclick="${role}State.authMode='${isSignup?'login':'signup'}';${role}State.err='';render()" style="color:#000;background:none;border:none;cursor:pointer;text-decoration:underline;">${isSignup ? t('logInLink') : t('signUp')}</button>
+                    </p>
+                    <p style="text-align:center;margin-top:16px;">
+                        <button onclick="state.view='privacy';render()" class="link-btn">Privacy Policy &amp; Terms</button>
+                    </p>
+                </div>
+            </div>
+        `;
+    }
+
+    function submitAuth(role) {
+        const target = role === 'rider' ? riderState : driverState;
+        const f = target.form;
+        if (!f.email || !f.password) { target.err = 'Email and password required'; render(); return; }
+        if (target.authMode === 'signup') {
+            if (!f.name) { target.err = 'Name required'; render(); return; }
+            if (!f.gender) { target.err = 'Please select your gender'; render(); return; }
+            doSignUp(target, f.email, f.password, f.name, role, f.phone || null, f.gender, f.emergencyName, f.emergencyPhone);
+        } else {
+            doSignIn(target, f.email, f.password, role);
+        }
+    }
+
+    // Selecting a gender during signup used to call a full render(), which
+    // rebuilds the whole page's HTML and can wipe out anything typed in the
+    // other fields. This instead only touches the two pill elements directly,
+    // so the name/phone/email/password fields are never recreated at all.
+    function selectSignupGender(role, value) {
+        const target = role === 'admin' ? adminState : (role === 'rider' ? riderState : driverState);
+        target.form.gender = value;
+        const maleEl = document.getElementById(`gender-pill-${role}-male`);
+        const femaleEl = document.getElementById(`gender-pill-${role}-female`);
+        if (maleEl) { maleEl.style.borderColor = value === 'male' ? '#000' : '#eee'; maleEl.style.background = value === 'male' ? '#f6f6f6' : '#fff'; }
+        if (femaleEl) { femaleEl.style.borderColor = value === 'female' ? '#000' : '#eee'; femaleEl.style.background = value === 'female' ? '#f6f6f6' : '#fff'; }
+    }
+    function adjustFare(delta) {
+        riderState.fare = Math.max(20, (riderState.fare || 0) + delta);
+        render();
+    }
+    async function bookRide() {
+        riderState.err = '';
+        if (riderState.pickup === riderState.dropoff) { riderState.err = 'Pickup and dropoff cannot be the same'; render(); return; }
+        if (!riderState.pickupLat || !riderState.dropoffLat) { riderState.err = 'Please select a pickup and dropoff from the search results or quick picks.'; render(); return; }
+        riderState.loading = true; render();
+        const { data, error } = await sb.from('rides').insert({
+            rider_id: state.session.user.id,
+            rider_name: state.profile.full_name,
+            rider_phone: state.profile.phone || 'N/A',
+            pickup_address: riderState.pickup, dropoff_address: riderState.dropoff,
+            pickup_lat: riderState.pickupLat, pickup_lng: riderState.pickupLng,
+            dropoff_lat: riderState.dropoffLat, dropoff_lng: riderState.dropoffLng,
+            vehicle_type: riderState.vehicle, fare: riderState.fare, status: 'searching',
+            city_id: state.profile.city_id, gender_preference: riderState.genderPref
+        }).select().single();
+        riderState.loading = false;
+        if (error) { riderState.err = error.message; render(); return; }
+        riderState.activeRide = data;
+        riderState.ratingDraft = { stars: 0, comment: '' };
+        riderState.sosSent = false;
+        riderState.onlineCount = null;
+        if (riderState.searchTick) clearInterval(riderState.searchTick);
+        riderState.searchTick = setInterval(() => {
+            if (riderState.activeRide && riderState.activeRide.status === 'searching') render();
+            else { clearInterval(riderState.searchTick); riderState.searchTick = null; }
+        }, 5000);
+        subscribeToRide(data.id, (updated) => { riderState.activeRide = updated; render(); }, 'rider');
+        render();
+    }
+
+    function renderSearchDelayNotice(r) {
+        const elapsedSec = (Date.now() - new Date(r.created_at).getTime()) / 1000;
+        if (elapsedSec < 45) return '';
+        return `
+            <div style="background:#fff7f7;border:1px solid #f3d6d6;padding:12px 14px;border-radius:8px;margin-bottom:16px;">
+                <div style="font-size:13px;color:#8a2f2f;margin-bottom:${r.gender_preference !== 'any' ? '10px' : '0'};">This is taking longer than usual. You can keep waiting or cancel and try again.</div>
+                ${r.gender_preference !== 'any' ? `<button onclick="widenGenderSearch('${r.id}')" class="uber-btn-outline uber-btn" style="font-size:13px;padding:8px;">Widen search to any driver</button>` : ''}
+            </div>
+        `;
+    }
+    async function widenGenderSearch(rideId) {
+        await sb.from('rides').update({ gender_preference: 'any' }).eq('id', rideId);
+    }
+
+    // ================== SHARED: REALTIME TRACKING ==================
+    function subscribeToRide(rideId, onUpdate, who) {
+        const channel = sb.channel('ride-' + rideId)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` },
+                (payload) => onUpdate(payload.new))
+            .subscribe();
+        if (who === 'rider') riderState.rideChannel = channel;
+        else driverState.rideChannel = channel;
+    }
+
+    function renderTrackingScreen(r, who) {
+        let statusText = t('searching'), etaText = 'This may take a moment';
+        if (r.status === 'countered') { statusText = who === 'rider' ? 'New offer from a driver' : 'Waiting for rider'; etaText = ''; }
+        if (r.status === 'accepted') { statusText = t('accepted'); etaText = 'Heading to pickup'; }
+        if (r.status === 'arrived_pickup') { statusText = t('arrived'); etaText = 'Please meet at pickup'; }
+        if (r.status === 'in_progress') { statusText = t('inProgress'); etaText = 'Heading to destination'; }
+        if (r.status === 'completed') { statusText = t('completed'); etaText = 'Thanks for riding!'; }
+        if (r.status === 'cancelled') { statusText = t('cancelled'); etaText = ''; }
+
+        const showDriverActions = who === 'driver';
+        const showRiderActions = who === 'rider';
+
+        return `
+            <div class="bottom-sheet slide-up" style="padding:0;">
+                <div class="sheet-handle"></div>
+                <div style="padding: 8px 24px 24px;">
+                    <div style="background:#f6f6f6;border-radius:8px;padding:12px;margin-bottom:20px;text-align:center;">
+                        <div style="font-weight:600;font-size:16px;">${statusText}</div>
+                        <div style="color:#757575;font-size:14px;margin-top:4px;">${etaText}</div>
+                        ${r.status==='searching' ? `<div style="width:24px;height:24px;border:3px solid #eee;border-top:3px solid #000;border-radius:50%;margin:12px auto 0;animation:spin 1s linear infinite;"></div>` : ''}
+                    </div>
+                    ${r.status === 'searching' ? renderSearchDelayNotice(r) : ''}
+                    ${r.status === 'countered' && showRiderActions ? `
+                        <div style="background:#fff9e6;border:1px solid #f0e0a0;padding:16px;border-radius:8px;margin-bottom:20px;">
+                            <div style="font-size:14px;margin-bottom:4px;">A driver offered a different price:</div>
+                            <div style="font-weight:700;font-size:22px;margin-bottom:12px;">Rs ${r.suggested_fare} <span style="font-size:13px;font-weight:400;color:#757575;">(you asked Rs ${r.fare})</span></div>
+                            <div style="display:flex;gap:8px;">
+                                <button onclick="acceptCounterOffer('${r.id}')" class="uber-btn" style="margin:0;">Accept</button>
+                                <button onclick="declineCounterOffer('${r.id}')" class="uber-btn-outline uber-btn" style="margin:0;">Decline</button>
+                            </div>
+                        </div>
+                    ` : ''}
+                    <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+                        <div style="width:48px;height:48px;background:#eee;border-radius:50%;display:flex;align-items:center;justify-content:center;">${Icons.user}</div>
+                        <div style="flex:1;">
+                            <div style="font-weight:700;font-size:18px;">${who==='rider' ? (r.driver_name || 'Waiting for driver') : r.rider_name}</div>
+                            <div style="display:flex;align-items:center;gap:4px;color:#757575;font-size:14px;">${who==='rider' ? (r.driver_phone||'') : (r.rider_phone||'')}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:16px;border-top:1px solid #eee;margin-bottom:16px;">
+                        <div><div style="font-size:13px;color:#757575;">Payment</div><div style="font-weight:600;text-transform:capitalize;">${r.payment_method || 'Cash'}</div></div>
+                        <div style="text-align:right;"><div style="font-size:13px;color:#757575;">Fare</div><div style="font-weight:700;font-size:20px;">Rs ${r.fare}</div></div>
+                    </div>
+
+                    ${showDriverActions && r.status === 'accepted' ? `<button onclick="advanceRide('${r.id}','arrived_pickup')" class="uber-btn">Arrived at Pickup</button>` : ''}
+                    ${showDriverActions && r.status === 'arrived_pickup' ? `<button onclick="advanceRide('${r.id}','in_progress')" class="uber-btn">Start Trip</button>` : ''}
+                    ${showDriverActions && r.status === 'in_progress' ? `<button onclick="advanceRide('${r.id}','completed',${r.fare})" class="uber-btn">Complete Trip</button>` : ''}
+                    ${showRiderActions && r.status === 'searching' ? `<button onclick="cancelRide('${r.id}')" class="uber-btn-outline uber-btn">Cancel Request</button>` : ''}
+                    ${r.status !== 'searching' && !['completed','cancelled'].includes(r.status) ? renderWhatsAppShare(r, who) : ''}
+                    ${r.status === 'completed' ? renderRatingBlock(r, who) : ''}
+                    ${(r.status === 'cancelled') ? `<button onclick="finishRide('${who}')" class="uber-btn">Done</button>` : ''}
+                    ${!['completed','cancelled'].includes(r.status) ? renderSosBlock(r, who) : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // ================== SOS / EMERGENCY ==================
+    function renderSosBlock(r, who) {
+        const target = who === 'rider' ? riderState : driverState;
+        if (target.sosSent) {
+            return `
+                <div style="margin-top:14px;background:#fdeaea;border:1px solid #f3caca;padding:12px;border-radius:8px;text-align:center;">
+                    <div style="font-weight:700;color:#c0392b;font-size:14px;">Alert sent to admins</div>
+                    <div style="font-size:12px;color:#8a2f2f;margin-top:2px;">If this is a life-threatening emergency, call local emergency services now.</div>
+                </div>
+            `;
+        }
+        return `
+            <div style="margin-top:14px;">
+                <button onclick="triggerSOS('${who}','${r.id}')" class="sos-btn">🚨 Emergency SOS</button>
+                <div style="font-size:11px;color:#999;text-align:center;margin-top:6px;">Alerts platform admins. For immediate danger, call emergency services directly.</div>
+            </div>
+        `;
+    }
+
+    async function triggerSOS(who, rideId) {
+        const target = who === 'rider' ? riderState : driverState;
+        if (!confirm('This will alert Go Drive admins that you feel unsafe. Continue?')) return;
+
+        let lat = null, lng = null;
+        try {
+            const pos = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
+            });
+            lat = pos.coords.latitude; lng = pos.coords.longitude;
+        } catch (e) { /* fall back to no coords */ }
+
+        const { error } = await sb.from('sos_alerts').insert({
+            ride_id: rideId,
+            triggered_by: state.session.user.id,
+            triggered_by_role: who,
+            triggered_by_name: state.profile.full_name,
+            triggered_by_phone: state.profile.phone || 'N/A',
+            city_id: state.profile.city_id,
+            lat, lng
+        });
+        if (error) { alert('Could not send alert: ' + error.message + '. If you are in danger, call emergency services now.'); return; }
+        target.sosSent = true;
+        render();
+    }
+
+    // ================== WHATSAPP LIVE TRIP SHARING ==================
+    function formatPhoneIntl(phone) {
+        if (!phone) return '';
+        const digits = phone.replace(/\D/g, '');
+        if (digits.startsWith('92')) return digits;
+        if (digits.startsWith('0')) return '92' + digits.slice(1);
+        return digits;
+    }
+    function renderWhatsAppShare(r, who) {
+        const hasContact = !!state.profile.emergency_contact_phone;
+        return `
+            <button onclick="shareRideOnWhatsApp('${r.id}','${who}')" style="background:#25D366;color:#fff;padding:14px;border-radius:8px;width:100%;font-weight:700;font-size:15px;border:none;cursor:pointer;margin-top:10px;">
+                📍 Share Live Ride on WhatsApp
+            </button>
+            <div style="font-size:11px;color:#999;text-align:center;margin-top:6px;">${hasContact ? "Sends your trip details to your emergency contact." : "No emergency contact on file — you'll be asked for a number."}</div>
+        `;
+    }
+    function shareRideOnWhatsApp(rideId, who) {
+        const r = who === 'rider' ? riderState.activeRide : driverState.activeRide;
+        if (!r) return;
+        let toPhone = state.profile.emergency_contact_phone;
+        if (!toPhone) {
+            toPhone = prompt("Enter the phone number to share this ride with (e.g. 03001234567):");
+            if (!toPhone) return;
+        }
+        const otherName = who === 'rider' ? (r.driver_name || 'a Go Drive driver') : r.rider_name;
+        const otherPhone = who === 'rider' ? (r.driver_phone || 'N/A') : (r.rider_phone || 'N/A');
+        const vehicle = who === 'rider' ? `${r.vehicle_type}${r.driver_plate ? ' · ' + r.driver_plate : ''}` : r.vehicle_type;
+        const msg = who === 'rider'
+            ? `I'm on a Go Drive ride and sharing my trip for safety.\n\nDriver: ${otherName}\nPhone: ${otherPhone}\nVehicle: ${vehicle}\nFrom: ${r.pickup_address}\nTo: ${r.dropoff_address}\nFare: Rs ${r.fare}\n\nI'll message again when I arrive.`
+            : `I'm driving a Go Drive rider and sharing the trip for safety.\n\nRider: ${otherName}\nPhone: ${otherPhone}\nFrom: ${r.pickup_address}\nTo: ${r.dropoff_address}\n\nI'll message again when the trip ends.`;
+        const url = `https://wa.me/${formatPhoneIntl(toPhone)}?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank');
+    }
+
+    // ================== RATINGS ==================
+    function renderRatingBlock(r, who) {
+        const alreadyRated = who === 'rider' ? (r.rating != null) : (r.driver_rating != null);
+        if (alreadyRated) {
+            return `
+                <div style="text-align:center;padding:12px 0 4px;">
+                    <div style="color:#757575;font-size:14px;margin-bottom:16px;">Thanks for your rating!</div>
+                    <button onclick="finishRide('${who}')" class="uber-btn">Done</button>
+                </div>
+            `;
+        }
+        const target = who === 'rider' ? riderState : driverState;
+        const draft = target.ratingDraft;
+        const rateeLabel = who === 'rider' ? (r.driver_name || 'your driver') : (r.rider_name || 'your rider');
+        return `
+            <div style="border-top:1px solid #eee;padding-top:16px;">
+                <div style="font-weight:600;margin-bottom:10px;">Rate ${rateeLabel}</div>
+                <div style="display:flex;gap:6px;margin-bottom:12px;">
+                    ${[1,2,3,4,5].map(n => `
+                        <button onclick="setRatingStars('${who}',${n})" style="background:none;border:none;cursor:pointer;padding:0;opacity:${draft.stars >= n ? '1' : '0.25'};">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="#000"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                        </button>`).join('')}
+                </div>
+                <textarea id="rating-comment" oninput="riderStateOrDriverState('${who}').ratingDraft.comment=this.value" placeholder="Add a comment (optional)" style="width:100%;padding:12px;border:1px solid #eee;border-radius:8px;margin-bottom:12px;font-size:14px;resize:none;min-height:60px;font-family:inherit;">${draft.comment}</textarea>
+                <button onclick="submitRating('${who}','${r.id}')" class="uber-btn" ${draft.stars===0?'disabled':''}>Submit Rating</button>
+                <button onclick="finishRide('${who}')" class="uber-btn-outline uber-btn" style="margin-top:8px;">Skip</button>
+            </div>
+        `;
+    }
+    function riderStateOrDriverState(who) { return who === 'rider' ? riderState : driverState; }
+    function setRatingStars(who, n) { riderStateOrDriverState(who).ratingDraft.stars = n; render(); }
+
+    async function submitRating(who, rideId) {
+        const target = riderStateOrDriverState(who);
+        const { stars, comment } = target.ratingDraft;
+        if (!stars) return;
+        const update = who === 'rider'
+            ? { rating: stars, rating_comment: comment || null }
+            : { driver_rating: stars, driver_rating_comment: comment || null };
+        const { data, error } = await sb.from('rides').update(update).eq('id', rideId).select().single();
+        if (error) { alert('Could not submit rating: ' + error.message); return; }
+        if (who === 'rider') riderState.activeRide = data; else driverState.activeRide = data;
+        render();
+    }
+
+    async function advanceRide(rideId, status, fare) {
+        const patch = { status, updated_at: new Date().toISOString() };
+        if (status === 'completed' && fare != null) {
+            patch.commission = +(fare * 0.2).toFixed(2);
+            patch.driver_earning = +(fare * 0.8).toFixed(2);
+        }
+        await sb.from('rides').update(patch).eq('id', rideId);
+    }
+    async function acceptCounterOffer(rideId) {
+        const { data, error } = await sb.from('rides').update({ status: 'accepted', fare: riderState.activeRide.suggested_fare }).eq('id', rideId).select().single();
+        if (error) { alert(error.message); return; }
+        riderState.activeRide = data;
+        render();
+    }
+    async function declineCounterOffer(rideId) {
+        const { data, error } = await sb.from('rides').update({ status: 'searching', driver_id: null, driver_name: null, driver_phone: null, suggested_fare: null }).eq('id', rideId).select().single();
+        if (error) { alert(error.message); return; }
+        riderState.activeRide = data;
+        render();
+    }
+    async function cancelRide(rideId) {
+        await sb.from('rides').update({ status: 'cancelled' }).eq('id', rideId);
+    }
+    function finishRide(who) {
+        if (who === 'rider') {
+            if(riderState.rideChannel) sb.removeChannel(riderState.rideChannel);
+            riderState.activeRide = null;
+            riderState.onlineCount = null;
+            if (riderState.searchTick) { clearInterval(riderState.searchTick); riderState.searchTick = null; }
+        }
+        else { if(driverState.rideChannel) sb.removeChannel(driverState.rideChannel); driverState.activeRide = null; stopWatchingLocation(); startSearchListener(); }
+        render();
+    }
+
+    function toggleCounterInput(rideId) {
+        driverState.counterInputFor = driverState.counterInputFor === rideId ? null : rideId;
+        render();
+    }
+    async function sendCounterOffer(rideId) {
+        const input = document.getElementById('counter-' + rideId);
+        const val = Number(input.value);
+        if (!val || val <= 0) { alert('Enter a valid price.'); return; }
+        const { data, error } = await sb.from('rides')
+            .update({ driver_id: state.session.user.id, driver_name: state.profile.full_name, driver_phone: state.profile.phone || 'N/A', status: 'countered', suggested_fare: val })
+            .eq('id', rideId).eq('status', 'searching')
+            .select().single();
+        if (error || !data) { alert('This ride is no longer available.'); fetchSearchingRides(); return; }
+        driverState.pendingCounter = data;
+        driverState.counterInputFor = null;
+        if (driverState.searchChannel) { sb.removeChannel(driverState.searchChannel); driverState.searchChannel = null; }
+        subscribeToRide(data.id, (updated) => {
+            if (updated.status === 'accepted' && updated.driver_id === state.session.user.id && driverState.pendingCounter) {
+                driverState.pendingCounter = null;
+                driverState.ratingDraft = { stars: 0, comment: '' };
+                driverState.sosSent = false;
+            } else if (updated.status === 'searching') {
+                driverState.pendingCounter = null;
+                if (driverState.rideChannel) { sb.removeChannel(driverState.rideChannel); driverState.rideChannel = null; }
+                alert('The rider declined your offer.');
+                startSearchListener();
+                render();
+                return;
+            }
+            driverState.activeRide = updated.status === 'countered' ? null : updated;
+            if (updated.status === 'countered') driverState.pendingCounter = updated;
+            render();
+        }, 'driver-pending');
+        render();
+    }
+    async function cancelCounterOffer(rideId) {
+        await sb.from('rides').update({ status: 'searching', driver_id: null, driver_name: null, driver_phone: null, suggested_fare: null }).eq('id', rideId);
+        driverState.pendingCounter = null;
+        if (driverState.rideChannel) { sb.removeChannel(driverState.rideChannel); driverState.rideChannel = null; }
+        startSearchListener();
+        render();
+    }
+    function renderPendingCounterScreen(r) {
+        return `
+            <div style="padding:80px 16px 16px;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;">
+                <div class="fade-in" style="max-width:400px;width:100%;text-align:center;">
+                    <div style="width:24px;height:24px;border:3px solid #eee;border-top:3px solid #000;border-radius:50%;margin:0 auto 20px;animation:spin 1s linear infinite;"></div>
+                    <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;">Waiting for the rider</h2>
+                    <p style="color:#757575;margin-bottom:20px;font-size:14px;">You offered <strong>Rs ${r.suggested_fare}</strong> (they asked for Rs ${r.fare}).</p>
+                    <div style="background:#f6f6f6;padding:16px;border-radius:8px;margin-bottom:20px;font-size:13px;color:#444;text-align:left;">${r.pickup_address} → ${r.dropoff_address}</div>
+                    <button onclick="cancelCounterOffer('${r.id}')" class="uber-btn-outline uber-btn">Cancel Offer</button>
+                </div>
+            </div>
+        `;
+    }
+
+    // ================== DRIVER ==================
+    function renderDriver() {
+        if (!state.session || state.profile?.role !== 'driver') return renderDriverAuthScreen();
+        if (driverState.pendingCounter) return renderPendingCounterScreen(driverState.pendingCounter);
+        if (driverState.screen === 'verify') return renderDriverVerify();
+        if (driverState.screen === 'history') return renderHistory('driver');
+        if (driverState.screen === 'earnings') return renderEarnings();
+        if (driverState.activeRide) return renderTrackingScreen(driverState.activeRide, 'driver');
+        if (!driverState.searchChannel) startSearchListener();
+        if (!driverState.headingSynced) { driverState.headingTo = state.profile.heading_to || null; driverState.headingSynced = true; }
+
+        const vStatus = state.profile.verification_status || 'unsubmitted';
+        const isVerified = !!state.profile.is_verified;
+        let vBanner = '';
+        if (!isVerified) {
+            const banners = {
+                unsubmitted: { text: 'Complete driver verification to start accepting rides.', cta: 'Verify Now', color: '#000' },
+                pending: { text: 'Your documents are under review. This usually takes a short while.', cta: 'View Submission', color: '#757575' },
+                auto_flagged: { text: 'Your submission needs a closer look from our team. Sit tight.', cta: 'View Submission', color: '#757575' },
+                rejected: { text: 'Your verification was rejected' + (state.profile.verification_notes ? ': ' + state.profile.verification_notes : '.') + ' Please resubmit.', cta: 'Resubmit', color: '#c0392b' }
+            };
+            const b = banners[vStatus] || banners.unsubmitted;
+            vBanner = `
+                <div style="background:#fff7f7;border:1px solid #f3d6d6;padding:16px;border-radius:8px;margin-bottom:20px;">
+                    <div style="font-size:14px;color:${b.color};margin-bottom:10px;">${b.text}</div>
+                    <button onclick="driverState.screen='verify';render()" class="uber-btn" style="width:auto;padding:10px 20px;">${b.cta}</button>
+                </div>
+            `;
+        }
+
+        return `
+            <div style="padding:80px 16px 16px;min-height:100vh;background:#fff;">
+                <div style="max-width:500px;margin:0 auto;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+                        <h2 style="font-size:22px;font-weight:700;">${t('welcome')}, ${state.profile.full_name}${isVerified ? ' <span style=\"color:#1a8a3d;font-size:13px;font-weight:600;vertical-align:middle;\">&#10003; Verified</span>' : ''}</h2>
+                        <div style="text-align:right;">
+                            <button onclick="openHistory('driver')" style="font-size:13px;color:#000;background:none;border:none;cursor:pointer;text-decoration:underline;display:block;margin-bottom:4px;">${t('history')}</button>
+                            <button onclick="openEarnings()" style="font-size:13px;color:#000;background:none;border:none;cursor:pointer;text-decoration:underline;display:block;margin-bottom:4px;">${t('earnings')}</button>
+                            <button onclick="doSignOut()" style="color:#757575;background:none;border:none;cursor:pointer;font-size:13px;">${t('logout')}</button>
+                        </div>
+                    </div>
+                    ${vBanner}
+                    <div style="display:flex;align-items:center;justify-content:space-between;background:#f6f6f6;padding:16px;border-radius:8px;margin-bottom:24px;">
+                        <div>
+                            <div style="font-weight:600;">${driverState.online ? t('youOnline') : t('youOffline')}</div>
+                            <div style="font-size:13px;color:#757575;">${!isVerified ? 'Verification required to go online' : (driverState.online ? 'Sharing live location' : 'Go online to receive requests')}</div>
+                        </div>
+                        <button onclick="toggleOnline()" class="uber-btn" style="width:auto;padding:10px 20px;" ${!isVerified?'disabled':''}>${driverState.online ? t('goOffline') : t('goOnline')}</button>
+                    </div>
+                    <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">${t('liveRequests')}</h3>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+                        <select onchange="setHeadingTo(this.value)" style="flex:1;padding:10px 12px;border:1px solid #eee;border-radius:8px;font-size:13px;background:#f6f6f6;">
+                            <option value="">Not heading anywhere in particular</option>
+                            ${Object.keys(PLACES).map(p => `<option value="${p}" ${driverState.headingTo===p?'selected':''}>Heading to: ${p}</option>`).join('')}
+                        </select>
+                    </div>
+                    ${!driverState.online ? `<div style="background:#f6f6f6;padding:32px;border-radius:8px;text-align:center;color:#757575;">${t('goOnlineToSee')}</div>` :
+                        filteredDriverRides().length === 0 ? `<div style="background:#f6f6f6;padding:32px;border-radius:8px;text-align:center;color:#757575;">${driverState.headingTo ? 'No requests along your route yet — ' : ''}${t('waitingRequests')}</div>` :
+                        filteredDriverRides().map(r => `
+                            <div class="fade-in" style="border:1px solid #eee;padding:20px;border-radius:8px;margin-bottom:12px;">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+                                    <span style="font-weight:700;font-size:20px;">Rs ${r.fare}</span>
+                                    <span style="color:#757575;font-size:14px;text-transform:capitalize;">${r.vehicle_type}</span>
+                                </div>
+                                ${r.gender_preference && r.gender_preference !== 'any' ? `<div style="display:inline-block;background:#f6f6f6;color:#444;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:600;text-transform:capitalize;margin-bottom:10px;">Rider requested a ${r.gender_preference} driver</div>` : ''}
+                                <div style="display:flex;gap:8px;color:#757575;font-size:14px;margin-bottom:16px;">
+                                    <span>${r.pickup_address}</span> <span>→</span> <span>${r.dropoff_address}</span>
+                                </div>
+                                <button onclick="acceptRide('${r.id}')" class="uber-btn">${t('accept')} — Rs ${r.fare}</button>
+                                ${driverState.counterInputFor === r.id ? `
+                                    <div style="display:flex;gap:8px;margin-top:8px;">
+                                        <input type="number" id="counter-${r.id}" placeholder="Your price" class="plain-input" style="margin:0;flex:1;">
+                                        <button onclick="sendCounterOffer('${r.id}')" class="uber-btn" style="width:auto;padding:0 16px;margin:0;">Send</button>
+                                    </div>
+                                ` : `<button onclick="toggleCounterInput('${r.id}')" class="uber-btn-outline uber-btn" style="margin-top:8px;">Offer a different price</button>`}
+                            </div>
+                        `).join('')
+                    }
+                </div>
+            </div>
+        `;
+    }
+
+    function filteredDriverRides() {
+        if (!driverState.headingTo) return driverState.rides;
+        return driverState.rides.filter(r => r.dropoff_address === driverState.headingTo);
+    }
+    function setHeadingTo(value) {
+        driverState.headingTo = value || null;
+        sb.from('profiles').update({ heading_to: driverState.headingTo }).eq('id', state.session.user.id).then(() => {});
+        render();
+    }
+
+    function startSearchListener() {
+        fetchSearchingRides();
+        driverState.searchChannel = sb.channel('searching-rides-' + state.profile.city_id)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'rides', filter: `city_id=eq.${state.profile.city_id}` }, () => {
+                // Debounce: several updates can land within milliseconds of each other
+                // (e.g. during price negotiation) — batch them into one re-render
+                // instead of visibly redrawing the list repeatedly.
+                if (driverState.searchDebounce) clearTimeout(driverState.searchDebounce);
+                driverState.searchDebounce = setTimeout(fetchSearchingRides, 300);
+            })
+            .subscribe();
+    }
+    async function fetchSearchingRides() {
+        const { data } = await sb.from('rides').select('*').eq('status', 'searching').eq('city_id', state.profile.city_id).order('created_at', { ascending: false });
+        driverState.rides = data || [];
+        if (state.view === 'driver' && !driverState.activeRide) render();
+    }
+
+    async function acceptRide(rideId) {
+        const { data, error } = await sb.from('rides')
+            .update({ driver_id: state.session.user.id, driver_name: state.profile.full_name, driver_phone: state.profile.phone || 'N/A', status: 'accepted' })
+            .eq('id', rideId).eq('status', 'searching')
+            .select().single();
+        if (error || !data) { alert('This ride was already taken by another driver.'); fetchSearchingRides(); return; }
+        driverState.activeRide = data;
+        driverState.ratingDraft = { stars: 0, comment: '' };
+        driverState.sosSent = false;
+        if (driverState.searchChannel) { sb.removeChannel(driverState.searchChannel); driverState.searchChannel = null; }
+        subscribeToRide(data.id, (updated) => { driverState.activeRide = updated; render(); }, 'driver');
+        render();
+    }
+
+    function toggleOnline() {
+        driverState.online = !driverState.online;
+        sb.from('profiles').update({ is_online: driverState.online }).eq('id', state.session.user.id).then(() => {});
+        if (driverState.online) startWatchingLocation();
+        else stopWatchingLocation();
+        render();
+    }
+    function startWatchingLocation() {
+        if (!navigator.geolocation) return;
+        driverState.watchId = navigator.geolocation.watchPosition(async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            await sb.from('profiles').update({ current_lat: latitude, current_lng: longitude }).eq('id', state.session.user.id);
+            if (driverState.activeRide) {
+                await sb.from('rides').update({ driver_lat: latitude, driver_lng: longitude }).eq('id', driverState.activeRide.id);
+            }
+        }, () => {}, { enableHighAccuracy: true, maximumAge: 5000 });
+    }
+    function stopWatchingLocation() {
+        if (driverState.watchId != null) navigator.geolocation.clearWatch(driverState.watchId);
+        driverState.watchId = null;
+    }
+
+    // ================== DRIVER VERIFICATION ==================
+    function renderDriverVerify() {
+        const v = driverState.verify;
+        const f = v.form;
+        const p = state.profile;
+        return `
+            <div style="padding:80px 16px 16px;min-height:100vh;background:#fff;">
+                <div style="max-width:500px;margin:0 auto;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <h2 style="font-size:22px;font-weight:700;">Driver Verification</h2>
+                        <button onclick="driverState.screen='dash';render()" style="color:#757575;background:none;border:none;cursor:pointer;">Back</button>
+                    </div>
+                    <p style="color:#757575;font-size:14px;margin-bottom:20px;">Submit your documents for review. An admin will approve or reject your submission.</p>
+                    ${v.err ? `<div class="err">${v.err}</div>` : ''}
+                    <input id="verify-cnic" class="plain-input" placeholder="CNIC Number" value="${f.cnic ?? p.cnic ?? ''}" oninput="driverState.verify.form.cnic=this.value">
+                    <input id="verify-license" class="plain-input" placeholder="License Number" value="${f.license_number ?? p.license_number ?? ''}" oninput="driverState.verify.form.license_number=this.value">
+                    <div class="input-group">
+                        <select onchange="driverState.verify.form.vehicle_type=this.value" style="width:100%;">
+                            ${['bike','rickshaw','car'].map(vt => `<option value="${vt}" ${(f.vehicle_type ?? p.vehicle_type ?? 'car')===vt?'selected':''}>${vt.charAt(0).toUpperCase()+vt.slice(1)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <input id="verify-plate" class="plain-input" placeholder="Vehicle Plate Number" value="${f.vehicle_plate ?? p.vehicle_plate ?? ''}" oninput="driverState.verify.form.vehicle_plate=this.value">
+
+                    <div style="margin:20px 0 12px;font-weight:600;font-size:15px;">Upload documents</div>
+                    ${verifyFileRow('cnic', 'CNIC photo')}
+                    ${verifyFileRow('license', 'License photo')}
+                    ${verifyFileRow('vehicle', 'Vehicle photo')}
+
+                    <button onclick="submitDriverVerification()" class="uber-btn" style="margin-top:20px;" ${v.loading?'disabled':''}>${v.loading ? 'Submitting...' : 'Submit for Review'}</button>
+                </div>
+            </div>
+        `;
+    }
+    function verifyFileRow(key, label) {
+        const file = driverState.verify.files[key];
+        return `
+            <div style="border:1px solid #eee;border-radius:8px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <div style="font-weight:500;font-size:14px;">${label}</div>
+                    <div style="font-size:12px;color:${file?'#1a8a3d':'#757575'};margin-top:2px;">${file ? file.name : 'No file selected'}</div>
+                </div>
+                <label class="uber-btn-outline" style="width:auto;padding:8px 14px;font-size:13px;border-radius:6px;cursor:pointer;">
+                    Choose
+                    <input type="file" accept="image/*" style="display:none;" onchange="onVerifyFileChange('${key}', this.files[0])">
+                </label>
+            </div>
+        `;
+    }
+    function onVerifyFileChange(key, file) {
+        if (!file) return;
+        driverState.verify.files[key] = file;
+        render();
+    }
+
+    async function submitDriverVerification() {
+        const v = driverState.verify;
+        v.err = '';
+        const f = v.form;
+        const cnic = f.cnic ?? state.profile.cnic;
+        const license_number = f.license_number ?? state.profile.license_number;
+        const vehicle_type = f.vehicle_type ?? state.profile.vehicle_type ?? 'car';
+        const vehicle_plate = f.vehicle_plate ?? state.profile.vehicle_plate;
+        if (!cnic || !license_number || !vehicle_plate) { v.err = 'Please fill in CNIC, license number, and vehicle plate.'; render(); return; }
+
+        const hasExistingDocs = state.profile.cnic_photo_url && state.profile.license_photo_url && state.profile.vehicle_photo_url;
+        const missingUpload = ['cnic','license','vehicle'].some(k => !v.files[k]);
+        if (!hasExistingDocs && missingUpload) { v.err = 'Please upload all three documents.'; render(); return; }
+
+        v.loading = true; render();
+        const uid = state.session.user.id;
+        const uploadedPaths = {};
+        try {
+            for (const key of ['cnic','license','vehicle']) {
+                const file = v.files[key];
+                if (!file) continue; // keep existing doc if not re-uploaded (e.g. resubmission)
+                const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+                const path = `${uid}/${key}.${ext}`;
+                const { error: upErr } = await sb.storage.from('driver-docs').upload(path, file, { upsert: true });
+                if (upErr) throw upErr;
+                uploadedPaths[key + '_photo_url'] = path;
+            }
+        } catch (e) {
+            v.loading = false; v.err = e.message || 'File upload failed'; render(); return;
+        }
+
+        const { error } = await sb.from('profiles').update({
+            cnic, license_number, vehicle_type, vehicle_plate,
+            ...uploadedPaths,
+            verification_status: 'pending',
+            verification_submitted_at: new Date().toISOString(),
+            verification_notes: null
+        }).eq('id', uid);
+        v.loading = false;
+        if (error) { v.err = error.message; render(); return; }
+
+        const { data: profile } = await sb.from('profiles').select('*').eq('id', uid).single();
+        state.profile = profile;
+        driverState.screen = 'dash';
+        driverState.verify = { form:{}, files:{}, err:'', loading:false };
+        render();
+    }
+
+    // ================== ADMIN ==================
+    function renderAdmin() {
+        if (!state.session || state.profile?.role !== 'admin') {
+            const isSignup = adminState.authMode === 'signup';
+            return `
+                <div style="padding:80px 16px 16px;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;">
+                    <div class="fade-in" style="max-width:400px;width:100%;text-align:center;">
+                        ${Icons.shield}
+                        <h2 style="font-size:24px;font-weight:700;margin:16px 0 24px;">${isSignup ? 'Create Admin Account' : 'Admin Access'}</h2>
+                        ${adminState.err ? `<div class="err">${adminState.err}</div>` : ''}
+                        ${isSignup ? `<input id="auth-admin-name" class="plain-input" placeholder="Full Name" value="${(adminState.form.name||'').replace(/"/g,'&quot;')}" oninput="adminState.form.name=this.value">` : ''}
+                        <input id="auth-admin-email" type="email" autocomplete="${isSignup ? 'email' : 'username'}" class="plain-input" placeholder="Admin Email" value="${(adminState.form.email||'').replace(/"/g,'&quot;')}" oninput="adminState.form.email=this.value">
+                        <input id="auth-admin-password" type="password" autocomplete="${isSignup ? 'new-password' : 'current-password'}" class="plain-input" placeholder="Password" value="${(adminState.form.password||'').replace(/"/g,'&quot;')}" oninput="adminState.form.password=this.value">
+                        ${!isSignup ? `<p style="text-align:right;margin:-4px 0 12px;"><button onclick="requestPasswordReset('admin')" style="color:#757575;background:none;border:none;cursor:pointer;text-decoration:underline;font-size:13px;">Forgot password?</button></p>` : ''}
+                        ${adminState.resetMsg ? `<div style="color:#1a7f37;font-size:13px;margin-bottom:12px;">${adminState.resetMsg}</div>` : ''}
+                        ${isSignup ? `<input id="auth-admin-code" class="plain-input" placeholder="Admin Access Code" value="${(adminState.form.accessCode||'').replace(/"/g,'&quot;')}" oninput="adminState.form.accessCode=this.value">` : ''}
+                        <button onclick="${isSignup ? 'submitAdminSignup()' : 'submitAdminLogin()'}" class="uber-btn">${isSignup ? 'Create Admin Account' : 'Unlock Dashboard'}</button>
+                        <p style="text-align:center;font-size:14px;color:#757575;margin-top:24px;">
+                            ${isSignup ? 'Already have an admin account?' : 'Have an access code?'}
+                            <button onclick="adminState.authMode='${isSignup?'login':'signup'}';adminState.err='';render()" style="color:#000;background:none;border:none;cursor:pointer;text-decoration:underline;">${isSignup ? 'Log in' : 'Create one'}</button>
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+        const rides = adminState.rides, drivers = adminState.drivers.filter(d => d.role === 'driver');
+        const completedRides = rides.filter(r => r.status === 'completed');
+        const totalRevenue = completedRides.reduce((sum, r) => sum + Number(r.fare), 0);
+        const platformCommission = totalRevenue * 0.20;
+
+        return `
+            <div style="padding:80px 24px 24px;min-height:100vh;background:#fff;">
+                <div style="max-width:1000px;margin:0 auto;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;">
+                        <div>
+                            <h2 style="font-size:24px;font-weight:700;">Admin Dashboard</h2>
+                            <div style="font-size:13px;color:#757575;margin-top:2px;">${state.profile.managed_city_id ? `Managing: ${cityName(state.profile.managed_city_id)}` : 'National admin — all cities'}</div>
+                        </div>
+                        <button onclick="doSignOut()" style="color:#757575;background:none;border:none;cursor:pointer;">Logout</button>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:32px;">
+                        <div style="background:#f6f6f6;padding:24px;border-radius:8px;">
+                            <div style="color:#757575;font-size:13px;">Gross Merchandise Value</div>
+                            <div style="font-size:24px;font-weight:700;margin-top:8px;">Rs ${totalRevenue}</div>
+                        </div>
+                        <div style="background:#f6f6f6;padding:24px;border-radius:8px;">
+                            <div style="color:#757575;font-size:13px;">Platform Commission (20%)</div>
+                            <div style="font-size:24px;font-weight:700;margin-top:8px;">Rs ${platformCommission.toFixed(0)}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:24px;border-bottom:1px solid #eee;margin-bottom:24px;overflow-x:auto;">
+                        <button onclick="adminState.tab='overview';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='overview'?'700':'400'};border-bottom:${adminState.tab==='overview'?'2px solid #000':'none'};cursor:pointer;white-space:nowrap;">Overview</button>
+                        <button onclick="adminState.tab='rides';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='rides'?'700':'400'};border-bottom:${adminState.tab==='rides'?'2px solid #000':'none'};cursor:pointer;white-space:nowrap;">Rides</button>
+                        <button onclick="adminState.tab='drivers';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='drivers'?'700':'400'};border-bottom:${adminState.tab==='drivers'?'2px solid #000':'none'};cursor:pointer;white-space:nowrap;">Drivers</button>
+                        <button onclick="adminState.tab='users';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='users'?'700':'400'};border-bottom:${adminState.tab==='users'?'2px solid #000':'none'};cursor:pointer;white-space:nowrap;">Users</button>
+                        <button onclick="adminState.tab='sos';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='sos'?'700':'400'};border-bottom:${adminState.tab==='sos'?'2px solid #000':'none'};cursor:pointer;color:${openSosCount(adminState.sosAlerts)>0?'#c0392b':'inherit'};white-space:nowrap;">SOS${openSosCount(adminState.sosAlerts)>0 ? ` (${openSosCount(adminState.sosAlerts)})` : ''}</button>
+                        <button onclick="adminState.tab='withdrawals';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='withdrawals'?'700':'400'};border-bottom:${adminState.tab==='withdrawals'?'2px solid #000':'none'};cursor:pointer;white-space:nowrap;">Withdrawals${pendingWithdrawalCount(adminState.withdrawals)>0 ? ` (${pendingWithdrawalCount(adminState.withdrawals)})` : ''}</button>
+                        ${!state.profile.managed_city_id ? `
+                        <button onclick="adminState.tab='fares';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='fares'?'700':'400'};border-bottom:${adminState.tab==='fares'?'2px solid #000':'none'};cursor:pointer;white-space:nowrap;">Fares</button>
+                        <button onclick="adminState.tab='content';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='content'?'700':'400'};border-bottom:${adminState.tab==='content'?'2px solid #000':'none'};cursor:pointer;white-space:nowrap;">Content</button>
+                        <button onclick="adminState.tab='cities';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='cities'?'700':'400'};border-bottom:${adminState.tab==='cities'?'2px solid #000':'none'};cursor:pointer;white-space:nowrap;">Cities</button>
+                        <button onclick="adminState.tab='admins';render()" style="padding:12px 0;border:none;background:none;font-weight:${adminState.tab==='admins'?'700':'400'};border-bottom:${adminState.tab==='admins'?'2px solid #000':'none'};cursor:pointer;white-space:nowrap;">Admins</button>
+                        ` : ''}
+                    </div>
+                    ${adminState.tab === 'overview' ? renderOverviewTab() : ''}
+                    ${adminState.tab === 'rides' ? `
+                        <div class="table-scroll"><table>
+                            <tr><th>Fare</th><th>Commission</th><th>Route</th><th>City</th><th>Gender</th><th>Status</th><th>Rating</th></tr>
+                            ${rides.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:32px;color:#757575;">No rides yet.</td></tr>` : rides.map(r => `
+                                <tr>
+                                    <td style="font-weight:600;">Rs ${r.fare}</td>
+                                    <td style="color:#757575;">Rs ${(r.status==='completed'? r.fare*0.2 : 0).toFixed(0)}</td>
+                                    <td style="font-size:13px;">${r.pickup_address} → ${r.dropoff_address}</td>
+                                    <td style="font-size:13px;">${cityName(r.city_id)}</td>
+                                    <td style="text-transform:capitalize;font-size:13px;">${r.gender_preference === 'any' ? '—' : r.gender_preference}</td>
+                                    <td style="text-transform:capitalize;">${r.status.replace('_',' ')}</td>
+                                    <td>${r.rating ? '★ ' + r.rating : '—'}</td>
+                                </tr>`).join('')}
+                        </table></div>` : ''}
+                    ${adminState.tab === 'drivers' ? `
+                        <div class="table-scroll"><table>
+                            <tr><th>Name</th><th>Phone</th><th>City</th><th>Vehicle</th><th>Rating</th><th>Verification</th><th></th></tr>
+                            ${drivers.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:32px;color:#757575;">No drivers registered.</td></tr>` : drivers.map(d => `
+                                <tr>
+                                    <td style="font-weight:600;">${d.full_name}</td>
+                                    <td>${d.phone||'N/A'}</td>
+                                    <td style="font-size:13px;">${cityName(d.city_id)}</td>
+                                    <td style="text-transform:capitalize;">${d.vehicle_type||'N/A'}</td>
+                                    <td>★ ${d.rating ?? '5.0'}</td>
+                                    <td>${verificationBadge(d)}</td>
+                                    <td><button onclick="openDriverReview('${d.id}')" style="color:#000;background:none;border:none;text-decoration:underline;cursor:pointer;font-size:13px;">Review</button></td>
+                                </tr>`).join('')}
+                        </table></div>` : ''}
+                    ${adminState.tab === 'sos' ? renderSosTab() : ''}
+                    ${adminState.tab === 'withdrawals' ? renderWithdrawalsTab() : ''}
+                    ${adminState.tab === 'users' ? renderUsersTab() : ''}
+                    ${adminState.tab === 'fares' && !state.profile.managed_city_id ? renderFaresTab() : ''}
+                    ${adminState.tab === 'content' && !state.profile.managed_city_id ? renderContentTab() : ''}
+                    ${adminState.tab === 'cities' && !state.profile.managed_city_id ? renderCitiesTab() : ''}
+                    ${adminState.tab === 'admins' && !state.profile.managed_city_id ? renderAdminsTab() : ''}
+                </div>
+            </div>
+            ${adminState.reviewDriver ? renderDriverReviewModal() : ''}
+        `;
+    }
+    function openSosCount(alerts) { return (alerts || []).filter(a => a.status === 'open').length; }
+
+    function renderOverviewTab() {
+        const rides = adminState.rides;
+        const today = new Date().toISOString().slice(0,10);
+        const ridesToday = rides.filter(r => (r.created_at||'').slice(0,10) === today).length;
+        const riders = adminState.users.filter(u => u.role === 'rider').length;
+        const driversCount = adminState.users.filter(u => u.role === 'driver').length;
+        const onlineDrivers = adminState.users.filter(u => u.role === 'driver' && u.is_online).length;
+        const pendingVerifications = adminState.drivers.filter(d => d.role === 'driver' && d.verification_status === 'pending').length;
+        const cards = [
+            ['Rides today', ridesToday],
+            ['Total riders', riders],
+            ['Total drivers', driversCount],
+            ['Drivers online now', onlineDrivers],
+            ['Pending driver approvals', pendingVerifications],
+            ['Pending withdrawals', pendingWithdrawalCount(adminState.withdrawals)],
+            ['Open SOS alerts', openSosCount(adminState.sosAlerts)]
+        ];
+        return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;">
+            ${cards.map(([label,val]) => `<div style="background:#f6f6f6;padding:20px;border-radius:8px;"><div style="color:#757575;font-size:13px;">${label}</div><div style="font-size:22px;font-weight:700;margin-top:6px;">${val}</div></div>`).join('')}
+        </div>`;
+    }
+
+    function renderUsersTab() {
+        const users = adminState.users;
+        return `
+            ${adminState.userMsg ? `<div style="color:#1a7f37;font-size:13px;margin-bottom:12px;">${adminState.userMsg}</div>` : ''}
+            <div class="table-scroll"><table>
+                <tr><th>Name</th><th>Email</th><th>Role</th><th>Phone</th><th>City</th><th>Status</th><th></th></tr>
+                ${users.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:32px;color:#757575;">No users found.</td></tr>` : users.map(u => `
+                    <tr>
+                        <td style="font-weight:600;">${u.full_name||'—'}</td>
+                        <td style="font-size:13px;">${u.email||'—'}</td>
+                        <td style="text-transform:capitalize;">${u.role}</td>
+                        <td>${u.phone||'—'}</td>
+                        <td style="font-size:13px;">${cityName(u.city_id)}</td>
+                        <td>${u.banned ? '<span style="color:#c0392b;">Banned</span>' : '<span style="color:#1a8a3d;">Active</span>'}</td>
+                        <td>${u.role === 'admin' ? '' : `<button onclick="toggleBanUser('${u.id}', ${!u.banned})" style="color:${u.banned?'#1a8a3d':'#c0392b'};background:none;border:none;text-decoration:underline;cursor:pointer;font-size:13px;">${u.banned ? 'Unban' : 'Ban'}</button>`}</td>
+                    </tr>`).join('')}
+            </table></div>
+        `;
+    }
+
+    async function toggleBanUser(userId, ban) {
+        if (ban && !confirm('Ban this user? They will be unable to log in.')) return;
+        const { error } = await sb.rpc('admin_set_user_banned', { target_user_id: userId, ban });
+        adminState.userMsg = error ? '' : (ban ? 'User banned.' : 'User unbanned.');
+        if (error) alert(error.message);
+        await loadAdminData();
+    }
+
+    function renderFaresTab() {
+        return `
+            <div style="max-width:500px;">
+                ${adminState.fareMsg ? `<div style="color:#1a7f37;font-size:13px;margin-bottom:12px;">${adminState.fareMsg}</div>` : ''}
+                <p style="color:#757575;font-size:13px;margin-bottom:16px;">These are flat starting fares shown to riders. (Distance/time-based pricing isn't built yet — this just controls the flat rate per vehicle type.)</p>
+                ${adminState.fareSettings.map(f => `
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                        <div style="width:100px;font-weight:600;">${f.label}</div>
+                        <input type="number" id="fare-${f.vehicle_type}" value="${f.base_fare}" class="plain-input" style="margin:0;flex:1;">
+                        <button onclick="saveFare('${f.vehicle_type}')" class="uber-btn" style="width:auto;padding:10px 16px;margin:0;">Save</button>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    async function saveFare(vehicleType) {
+        const val = Number(document.getElementById('fare-'+vehicleType).value);
+        if (!val || val <= 0) { alert('Enter a valid fare amount.'); return; }
+        const { error } = await sb.from('fare_settings').update({ base_fare: val, updated_at: new Date().toISOString(), updated_by: state.session.user.id }).eq('vehicle_type', vehicleType);
+        adminState.fareMsg = error ? '' : 'Fare updated.';
+        if (error) alert(error.message);
+        const { data } = await sb.from('fare_settings').select('*').order('vehicle_type');
+        adminState.fareSettings = data || [];
+        state.fareSettings = data || [];
+        render();
+    }
+
+    function renderContentTab() {
+        const current = adminState.content['privacy_policy_terms'] || '';
+        return `
+            <div style="max-width:700px;">
+                ${adminState.contentMsg ? `<div style="color:#1a7f37;font-size:13px;margin-bottom:12px;">${adminState.contentMsg}</div>` : ''}
+                <div style="font-weight:600;margin-bottom:8px;">Privacy Policy & Terms of Use</div>
+                <p style="color:#757575;font-size:13px;margin-bottom:8px;">Plain text. Leave blank to fall back to the default built-in text.</p>
+                <textarea id="content-privacy" style="width:100%;min-height:300px;padding:12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;font-size:14px;">${current}</textarea>
+                <button onclick="saveContent()" class="uber-btn" style="width:auto;padding:10px 20px;margin-top:12px;">Save</button>
+            </div>
+        `;
+    }
+    async function saveContent() {
+        const val = document.getElementById('content-privacy').value;
+        const { error } = await sb.from('app_content').upsert({ key: 'privacy_policy_terms', content: val, updated_at: new Date().toISOString(), updated_by: state.session.user.id });
+        adminState.contentMsg = error ? '' : 'Saved.';
+        if (error) alert(error.message);
+        const { data } = await sb.from('app_content').select('*');
+        adminState.content = Object.fromEntries((data || []).map(c => [c.key, c.content]));
+        render();
+    }
+
+    function renderCitiesTab() {
+        return `
+            <div style="max-width:600px;">
+                ${adminState.cityMsg ? `<div style="color:#1a7f37;font-size:13px;margin-bottom:12px;">${adminState.cityMsg}</div>` : ''}
+                <div class="table-scroll"><table>
+                    <tr><th>Name</th><th>Province</th><th>Active</th><th></th></tr>
+                    ${adminState.cities.map(c => `
+                        <tr>
+                            <td style="font-weight:600;">${c.name}</td>
+                            <td>${c.province||'—'}</td>
+                            <td>${c.is_active ? '<span style="color:#1a8a3d;">Active</span>' : '<span style="color:#757575;">Inactive</span>'}</td>
+                            <td><button onclick="toggleCityActive('${c.id}', ${!c.is_active})" style="color:#000;background:none;border:none;text-decoration:underline;cursor:pointer;font-size:13px;">${c.is_active ? 'Deactivate' : 'Activate'}</button></td>
+                        </tr>`).join('')}
+                </table></div>
+                <div style="margin-top:24px;font-weight:600;">Add a new city</div>
+                <input id="new-city-name" class="plain-input" placeholder="City name" oninput="adminState.newCity.name=this.value">
+                <input id="new-city-province" class="plain-input" placeholder="Province" oninput="adminState.newCity.province=this.value">
+                <button onclick="addCity()" class="uber-btn" style="width:auto;padding:10px 20px;">Add city</button>
+                <p style="color:#757575;font-size:12px;margin-top:8px;">New cities start inactive. Note: precise geofencing (map boundaries) for auto-detecting which city a rider is in isn't editable here yet — added cities work, but riders may need to select their city manually until that's wired up.</p>
+            </div>
+        `;
+    }
+    async function toggleCityActive(cityId, active) {
+        const { error } = await sb.from('cities').update({ is_active: active }).eq('id', cityId);
+        adminState.cityMsg = error ? '' : 'City updated.';
+        if (error) alert(error.message);
+        const { data } = await sb.from('cities').select('*').order('name');
+        adminState.cities = data || [];
+        render();
+    }
+    async function addCity() {
+        const { name, province } = adminState.newCity;
+        if (!name) { alert('Enter a city name.'); return; }
+        const id = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_');
+        const { error } = await sb.from('cities').insert({ id, name, province: province || null, is_active: false });
+        if (error) { alert(error.message); return; }
+        adminState.cityMsg = 'City added (inactive by default).';
+        adminState.newCity = { name: '', province: '' };
+        const { data } = await sb.from('cities').select('*').order('name');
+        adminState.cities = data || [];
+        render();
+    }
+
+    function renderAdminsTab() {
+        const admins = adminState.users.filter(u => u.role === 'admin');
+        return `
+            <div style="max-width:600px;">
+                ${adminState.adminMsg ? `<div style="color:#1a7f37;font-size:13px;margin-bottom:12px;">${adminState.adminMsg}</div>` : ''}
+                <div class="table-scroll"><table>
+                    <tr><th>Name</th><th>Email</th><th>Scope</th><th></th></tr>
+                    ${admins.map(a => `
+                        <tr>
+                            <td style="font-weight:600;">${a.full_name}</td>
+                            <td style="font-size:13px;">${a.email}</td>
+                            <td>${a.city_id ? cityName(a.city_id) : 'National'}</td>
+                            <td>${a.id === state.session.user.id ? '' : `<button onclick="demoteUser('${a.id}')" style="color:#c0392b;background:none;border:none;text-decoration:underline;cursor:pointer;font-size:13px;">Remove admin</button>`}</td>
+                        </tr>`).join('')}
+                </table></div>
+                <div style="margin-top:24px;font-weight:600;">Promote an existing user to admin</div>
+                <p style="color:#757575;font-size:12px;margin-bottom:8px;">They must already have a rider or driver account with this exact email.</p>
+                <input id="new-admin-email" class="plain-input" placeholder="Their email" oninput="adminState.newAdmin.email=this.value">
+                <button onclick="promoteUser()" class="uber-btn" style="width:auto;padding:10px 20px;">Make admin (national)</button>
+            </div>
+        `;
+    }
+    async function promoteUser() {
+        const email = adminState.newAdmin.email;
+        if (!email) { alert('Enter an email.'); return; }
+        const { error } = await sb.rpc('admin_promote_to_admin', { target_email: email, target_managed_city: null });
+        if (error) { alert(error.message); return; }
+        adminState.adminMsg = `${email} is now an admin.`;
+        adminState.newAdmin = { email: '' };
+        await loadAdminData();
+    }
+    async function demoteUser(userId) {
+        if (!confirm('Remove admin access for this user? They will become a regular rider.')) return;
+        const { error } = await sb.rpc('admin_demote_admin', { target_user_id: userId, new_role: 'rider' });
+        if (error) { alert(error.message); return; }
+        adminState.adminMsg = 'Admin access removed.';
+        await loadAdminData();
+    }
+
+    function renderSosTab() {
+        const alerts = adminState.sosAlerts;
+        if (alerts.length === 0) {
+            return `<div style="background:#f6f6f6;padding:32px;border-radius:8px;text-align:center;color:#757575;">No SOS alerts. That's a good sign.</div>`;
+        }
+        return alerts.map(a => `
+            <div style="border:1px solid ${a.status==='open'?'#f3caca':'#eee'};background:${a.status==='open'?'#fff7f7':'#fff'};padding:18px;border-radius:8px;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                    <div>
+                        <div style="font-weight:700;font-size:15px;">${a.triggered_by_name || 'Unknown'} <span style="font-weight:400;color:#757575;font-size:13px;text-transform:capitalize;">(${a.triggered_by_role})</span></div>
+                        <div style="font-size:13px;color:#757575;">${a.triggered_by_phone || 'No phone on file'}</div>
+                    </div>
+                    <span style="background:${a.status==='open'?'#fdeaea':a.status==='acknowledged'?'#fff6e0':'#e6f6ea'};color:${a.status==='open'?'#c0392b':a.status==='acknowledged'?'#8a6d1a':'#1a8a3d'};padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;text-transform:capitalize;">${a.status}</span>
+                </div>
+                <div style="font-size:12px;color:#999;margin-bottom:10px;">${new Date(a.created_at).toLocaleString()}${a.lat ? ` · ${a.lat.toFixed(4)}, ${a.lng.toFixed(4)}` : ' · location unavailable'}</div>
+                ${a.status !== 'resolved' ? `
+                    <div style="display:flex;gap:8px;">
+                        ${a.status === 'open' ? `<button onclick="updateSosStatus('${a.id}','acknowledged')" class="uber-btn" style="width:auto;padding:8px 16px;font-size:13px;">Acknowledge</button>` : ''}
+                        <button onclick="updateSosStatus('${a.id}','resolved')" class="uber-btn-outline uber-btn" style="width:auto;padding:8px 16px;font-size:13px;">Mark Resolved</button>
+                    </div>
+                ` : ''}
+            </div>
+        `).join('');
+    }
+
+    async function updateSosStatus(id, status) {
+        const patch = { status };
+        if (status === 'resolved') { patch.resolved_at = new Date().toISOString(); patch.resolved_by = state.session.user.id; }
+        const { error } = await sb.from('sos_alerts').update(patch).eq('id', id);
+        if (error) { alert(error.message); return; }
+        loadAdminData();
+    }
+
+    function pendingWithdrawalCount(list) { return (list || []).filter(w => w.status === 'pending').length; }
+    function renderWithdrawalsTab() {
+        const withdrawals = adminState.withdrawals;
+        if (withdrawals.length === 0) {
+            return `<div style="background:#f6f6f6;padding:32px;border-radius:8px;text-align:center;color:#757575;">No withdrawal requests yet.</div>`;
+        }
+        return withdrawals.map(w => {
+            const driver = adminState.drivers.find(d => d.id === w.driver_id);
+            return `
+            <div style="border:1px solid ${w.status==='pending'?'#f3e0ab':'#eee'};background:${w.status==='pending'?'#fffaf0':'#fff'};padding:18px;border-radius:8px;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                    <div>
+                        <div style="font-weight:700;font-size:15px;">${driver ? driver.full_name : 'Unknown driver'}</div>
+                        <div style="font-size:13px;color:#757575;text-transform:capitalize;">${w.method} · ${w.account_number}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-weight:700;font-size:16px;">Rs ${w.amount}</div>
+                        <span style="background:${w.status==='pending'?'#fff6e0':w.status==='paid'?'#e6f6ea':'#fdeaea'};color:${w.status==='pending'?'#8a6d1a':w.status==='paid'?'#1a8a3d':'#c0392b'};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;text-transform:capitalize;">${w.status}</span>
+                    </div>
+                </div>
+                <div style="font-size:12px;color:#999;margin-bottom:10px;">Requested ${new Date(w.requested_at).toLocaleString()}</div>
+                ${w.status === 'pending' ? `
+                    <div style="display:flex;gap:8px;">
+                        <button onclick="updateWithdrawalStatus('${w.id}','paid')" class="uber-btn" style="width:auto;padding:8px 16px;font-size:13px;">Mark Paid</button>
+                        <button onclick="updateWithdrawalStatus('${w.id}','rejected')" class="uber-btn-outline uber-btn" style="width:auto;padding:8px 16px;font-size:13px;">Reject</button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+        }).join('');
+    }
+    async function updateWithdrawalStatus(id, status) {
+        const patch = { status };
+        if (status === 'paid') patch.paid_at = new Date().toISOString();
+        const { error } = await sb.from('withdrawal_requests').update(patch).eq('id', id);
+        if (error) { alert(error.message); return; }
+        loadAdminData();
+    }
+
+    function verificationBadge(d) {
+        const status = d.verification_status || 'unsubmitted';
+        const map = {
+            unsubmitted: { label: 'Not submitted', bg: '#f6f6f6', fg: '#757575' },
+            pending: { label: 'Pending review', bg: '#fff6e0', fg: '#8a6d1a' },
+            auto_flagged: { label: 'Flagged', bg: '#fff0e0', fg: '#a34e00' },
+            approved: { label: 'Verified', bg: '#e6f6ea', fg: '#1a8a3d' },
+            rejected: { label: 'Rejected', bg: '#fdeaea', fg: '#c0392b' }
+        };
+        const b = map[status] || map.unsubmitted;
+        return `<span style="background:${b.bg};color:${b.fg};padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;">${b.label}</span>`;
+    }
+
+    // ================== ADMIN: DRIVER VERIFICATION REVIEW ==================
+    async function openDriverReview(driverId) {
+        const driver = adminState.drivers.find(d => d.id === driverId);
+        if (!driver) return;
+        adminState.reviewDriver = driver;
+        adminState.reviewDocs = null;
+        adminState.reviewNotes = '';
+        adminState.reviewErr = '';
+        render();
+
+        const docs = {};
+        for (const [key, col] of [['cnic','cnic_photo_url'],['license','license_photo_url'],['vehicle','vehicle_photo_url']]) {
+            const path = driver[col];
+            if (!path) continue;
+            const { data, error } = await sb.storage.from('driver-docs').createSignedUrl(path, 3600);
+            if (!error && data) docs[key] = data.signedUrl;
+        }
+        adminState.reviewDocs = docs;
+        render();
+    }
+    function closeDriverReview() {
+        adminState.reviewDriver = null; adminState.reviewDocs = null; adminState.reviewNotes = ''; adminState.reviewErr = '';
+        render();
+    }
+
+    function renderDriverReviewModal() {
+        const d = adminState.reviewDriver;
+        const docs = adminState.reviewDocs;
+        const docLabels = { cnic: 'CNIC Photo', license: 'License Photo', vehicle: 'Vehicle Photo' };
+        return `
+            <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closeDriverReview()">
+                <div style="background:#fff;border-radius:12px;max-width:520px;width:100%;max-height:85vh;overflow-y:auto;padding:24px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <h3 style="font-size:20px;font-weight:700;">${d.full_name}</h3>
+                        <button onclick="closeDriverReview()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#757575;">&times;</button>
+                    </div>
+                    <div style="margin-bottom:16px;">${verificationBadge(d)}</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px;margin-bottom:20px;">
+                        <div><div style="color:#757575;font-size:12px;">Phone</div>${d.phone || 'N/A'}</div>
+                        <div><div style="color:#757575;font-size:12px;">CNIC</div>${d.cnic || 'N/A'}</div>
+                        <div><div style="color:#757575;font-size:12px;">License #</div>${d.license_number || 'N/A'}</div>
+                        <div><div style="color:#757575;font-size:12px;">Vehicle</div>${(d.vehicle_type||'N/A')} · ${d.vehicle_plate||'N/A'}</div>
+                    </div>
+                    <div style="font-weight:600;margin-bottom:10px;">Documents</div>
+                    ${docs === null ? `<div style="color:#757575;font-size:13px;margin-bottom:16px;">Loading documents...</div>` :
+                        Object.keys(docLabels).map(key => `
+                            <div style="margin-bottom:14px;">
+                                <div style="font-size:13px;color:#757575;margin-bottom:6px;">${docLabels[key]}</div>
+                                ${docs[key] ? `<img src="${docs[key]}" style="width:100%;border-radius:8px;border:1px solid #eee;" />` : `<div style="background:#f6f6f6;padding:16px;border-radius:8px;text-align:center;color:#757575;font-size:13px;">Not submitted</div>`}
+                            </div>
+                        `).join('')
+                    }
+                    ${d.verification_notes ? `<div style="background:#fdeaea;color:#c0392b;padding:10px;border-radius:8px;font-size:13px;margin-bottom:12px;">Previous note: ${d.verification_notes}</div>` : ''}
+                    ${adminState.reviewErr ? `<div class="err">${adminState.reviewErr}</div>` : ''}
+                    <textarea id="review-notes" oninput="adminState.reviewNotes=this.value" placeholder="Rejection reason (required to reject)" style="width:100%;padding:12px;border:1px solid #eee;border-radius:8px;margin:8px 0 16px;font-size:14px;resize:none;min-height:60px;font-family:inherit;">${adminState.reviewNotes}</textarea>
+                    <div style="display:flex;gap:10px;">
+                        <button onclick="approveDriver('${d.id}')" class="uber-btn" ${adminState.reviewLoading?'disabled':''}>Approve</button>
+                        <button onclick="rejectDriver('${d.id}')" class="uber-btn-outline uber-btn" ${adminState.reviewLoading?'disabled':''}>Reject</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async function approveDriver(driverId) {
+        adminState.reviewErr = ''; adminState.reviewLoading = true; render();
+        const { error } = await sb.from('profiles').update({
+            is_verified: true, verification_status: 'approved', verification_reviewed_at: new Date().toISOString(), verification_notes: null
+        }).eq('id', driverId);
+        adminState.reviewLoading = false;
+        if (error) { adminState.reviewErr = error.message; render(); return; }
+        closeDriverReview();
+        loadAdminData();
+    }
+    async function rejectDriver(driverId) {
+        if (!adminState.reviewNotes.trim()) { adminState.reviewErr = 'Please provide a reason for rejection.'; render(); return; }
+        adminState.reviewErr = ''; adminState.reviewLoading = true; render();
+        const { error } = await sb.from('profiles').update({
+            is_verified: false, verification_status: 'rejected', verification_reviewed_at: new Date().toISOString(), verification_notes: adminState.reviewNotes.trim()
+        }).eq('id', driverId);
+        adminState.reviewLoading = false;
+        if (error) { adminState.reviewErr = error.message; render(); return; }
+        closeDriverReview();
+        loadAdminData();
+    }
+
+    async function submitAdminSignup() {
+        adminState.err = '';
+        const f = adminState.form;
+        if (!f.name || !f.email || !f.password || !f.accessCode) { adminState.err = 'All fields required, including the access code'; render(); return; }
+        const { data, error } = await sb.auth.signUp({
+            email: f.email, password: f.password,
+            options: { data: { full_name: f.name, role: 'rider' } } // starts as rider; promoted below if code is valid
+        });
+        if (error) { adminState.err = error.message; render(); return; }
+        if (!data.session) { adminState.err = 'Check your email to confirm your account, then log in as admin.'; adminState.authMode = 'login'; render(); return; }
+        const { data: claimed, error: claimErr } = await sb.rpc('claim_admin', { access_code: f.accessCode });
+        if (claimErr || !claimed) {
+            adminState.err = 'Invalid access code. Account created as a regular rider instead.';
+            await sb.auth.signOut();
+            render(); return;
+        }
+        const { data: profile } = await sb.from('profiles').select('*').eq('id', data.user.id).single();
+        state.session = data.session; state.profile = profile;
+        loadAdminData();
+    }
+
+    async function submitAdminLogin() {
+        adminState.err = '';
+        const f = adminState.form;
+        if (!f.email || !f.password) { adminState.err = 'Email and password required'; render(); return; }
+        const { data, error } = await sb.auth.signInWithPassword({ email: f.email, password: f.password });
+        if (error) { adminState.err = error.message; render(); return; }
+        const { data: profile } = await sb.from('profiles').select('*').eq('id', data.user.id).single();
+        if (profile?.role !== 'admin') {
+            adminState.err = 'This account does not have admin access.';
+            await sb.auth.signOut(); render(); return;
+        }
+        state.session = data.session; state.profile = profile;
+        loadAdminData();
+    }
+
+    async function loadAdminData() {
+        const [{ data: rides }, { data: profiles }, { data: cities }, { data: sosAlerts }, { data: withdrawals }, { data: users }, { data: fareSettings }, { data: content }] = await Promise.all([
+            sb.from('rides').select('*').order('created_at', { ascending: false }),
+            sb.from('profiles').select('*'),
+            sb.from('cities').select('*').order('name'),
+            sb.from('sos_alerts').select('*').order('created_at', { ascending: false }),
+            sb.from('withdrawal_requests').select('*').order('requested_at', { ascending: false }),
+            sb.rpc('admin_list_users'),
+            sb.from('fare_settings').select('*').order('vehicle_type'),
+            sb.from('app_content').select('*')
+        ]);
+        adminState.rides = rides || [];
+        adminState.drivers = profiles || [];
+        adminState.cities = cities || [];
+        adminState.sosAlerts = sosAlerts || [];
+        adminState.withdrawals = withdrawals || [];
+        adminState.users = users || [];
+        adminState.fareSettings = fareSettings || [];
+        adminState.content = Object.fromEntries((content || []).map(c => [c.key, c.content]));
+        if (!adminState.sosChannel) {
+            adminState.sosChannel = sb.channel('admin-sos')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_alerts' }, () => {
+                    sb.from('sos_alerts').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+                        adminState.sosAlerts = data || [];
+                        render();
+                    });
+                })
+                .subscribe();
+        }
+        render();
+    }
+
+    // ================== INIT ==================
+    (async function init() {
+        sb.from('fare_settings').select('*').then(({ data }) => { state.fareSettings = data || []; render(); });
+        sb.from('app_content').select('*').then(({ data }) => { state.appContent = Object.fromEntries((data||[]).map(c=>[c.key,c.content])); render(); });
+        sb.from('cities').select('*').then(({ data }) => { state.cities = data || []; render(); });
+        await refreshSession();
+        render();
+    })();
+    </script>
+</body>
+</html>
