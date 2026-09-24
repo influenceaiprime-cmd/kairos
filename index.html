@@ -234,6 +234,22 @@ input[type=range]::-moz-range-track{height:2px;background:var(--line)}
 .dcell span{display:block;font-size:8.5px;letter-spacing:.18em;color:var(--faint);margin-bottom:9px}
 .dcell b{font-size:14.5px}
 .hodl{margin-top:26px;border:1px solid var(--line);padding:18px 20px;font-size:11px;line-height:2;letter-spacing:.04em;color:var(--mut)}
+.psych{margin-top:26px;border:1px solid var(--line);padding:18px 20px}
+.psych .hl{display:block;margin-bottom:2px}
+.psych .hsub{display:block;margin-bottom:14px}
+.psych-row{display:grid;grid-template-columns:1fr auto;gap:4px 14px;padding:10px 0;border-bottom:1px solid var(--line2);font-size:11px;letter-spacing:.03em;align-items:baseline}
+.psych-row:last-child{border-bottom:0}
+.psych-row .pl{color:var(--mut)}
+.psych-row .pv{font-family:'JetBrains Mono',monospace;font-weight:600;text-align:right}
+.psych-row .pd{grid-column:1/-1;color:var(--faint);font-size:10.5px;line-height:1.6;margin-top:-2px}
+.psych-tilt{margin-top:4px;border:1px solid var(--red);background:rgba(255,77,94,.08);color:var(--red);padding:12px 14px;font-size:11px;letter-spacing:.03em;line-height:1.7}
+.psych-tilt b{color:var(--red)}
+.psych-mood{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.psych-mood button{flex:1;min-width:70px;background:var(--bg);border:1px solid var(--line2);color:var(--mut);padding:8px 6px;font-size:9.5px;letter-spacing:.08em;cursor:pointer}
+.psych-mood button:hover{border-color:var(--lime);color:var(--lime)}
+.psych-mood button.sel{background:var(--lime);color:#0A0C0F;border-color:var(--lime);font-weight:700}
+.psych-heat{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;margin-top:12px}
+.psych-heat i{display:block;aspect-ratio:1;border-radius:2px;background:var(--line2)}
 .hodl b{font-size:12.5px}
 .hodl .hl{font-family:Unbounded;font-weight:700;font-size:10px;letter-spacing:.2em;color:var(--lime);display:block;margin-bottom:8px}
 .cop{margin-top:26px;border:1px solid var(--line);padding:18px 20px}
@@ -557,6 +573,7 @@ footer{margin-top:100px;border-top:1px solid var(--line);padding:30px 0 44px}
           <div id="traits"></div>
           <div class="dstats" id="dstats"></div>
           <div class="hodl" id="hodlBench"></div>
+          <div class="psych" id="psychPanel"></div>
           <div class="cop">
             <span class="hl">AI CO-PILOT</span>
             <span class="hsub">ASK ABOUT YOUR BOOK — ANSWERS COMPUTED FROM YOUR REAL FILLS</span>
@@ -861,7 +878,7 @@ let importedMode=false;
 function isPanic(a,i){const j=Math.max(0,i-24);return a.hist[i]<a.hist[j];}
 
 /* execTrade — px (optional explicit fill price) & ts (optional real timestamp) power CSV import */
-function execTrade(i,sym,side,usd,px,ts){
+function execTrade(i,sym,side,usd,px,ts,mood){
   const a=bySym(sym),price=px||a.hist[i];
   const tstamp=ts||timeAt(i);
   if(side==='BUY'){
@@ -869,6 +886,7 @@ function execTrade(i,sym,side,usd,px,ts){
     cash-=usd;holdings[sym]=(holdings[sym]||0)+qty;basis[sym]=(basis[sym]||0)+usd;
     lots.push({sym,qty,price,i,ts:tstamp});
     trades.push({i,sym,side,usd,qty,price,ts:tstamp});
+    if(mood)moodLog.push({sym,price,mood,ts:tstamp});
     return{usd,qty,price};
   }
   const have=holdings[sym]||0;
@@ -963,6 +981,7 @@ const R={};
 ['heroVal','heroDelta','hstats','modeDot','modeTxt','btnLive','gauge','sentiVal','sentiLbl','pRegime','pVol','pSess','feed',
  'regimePill','clock','btnReplay','terrain','liveDot','lrows','abar','sliders','scenVal','scenDelta','scenNote','scenChart',
  'scenContrib','radar','archName','archDesc','traits','dstats','assetChips','sideBuy','sideSell','amtIn','estLine','availLine',
+ 'psychPanel',
  'btnExec','positions','blotter','toasts','tapeTrack','boot','planBadge','loScen','loDna','loTerm','reqScen','reqDna','reqTerm',
  'pageLad','mLad','billPage','billModal','planModal','mManage','mRetain','btnPause','btnCancelPlan','btnRetPause','btnRetCancel',
  'btnMC','mcStats','hodlBench','copIn','copOut','copBtn','matrixBody','btnFounder','fbarFill','fcCount','termStatus',
@@ -1430,6 +1449,110 @@ function renderHodl(){
    ${alpha>=0?' — YOU ARE BEATING THE SIMPLEST STRATEGY IN THE WORLD.':' — THE BAR IS LOW. TIME TO EARN YOUR FEES.'}`;
 }
 
+/* ================= PSYCHOLOGY ENGINE (DNA tier feature) =================
+   Everything below is computed only from trades[]/closed[]/lots[] — the same
+   ground truth as computeDNA() — so it holds for both the simulated backstory
+   and imported CSV history. Nothing here is a separate/fake dataset. */
+let psych={}, moodLog=[], selectedMood=null;
+const MOODS=[['confident','CONFIDENT'],['anxious','ANXIOUS'],['bored','BORED'],['revenge','REVENGE'],['fomo','FOMO']];
+
+function tradeHoldHrs(c){return importedMode?((c.ts-c.entryTs)/3600000):(c.hold*MIN_PER_TICK/60);}
+
+function computePsych(){
+  const wins=closed.filter(c=>c.pnl>0), losses=closed.filter(c=>c.pnl<=0);
+  const avgWinHold=wins.length?mean(wins.map(tradeHoldHrs)):0;
+  const avgLossHold=losses.length?mean(losses.map(tradeHoldHrs)):0;
+  // Disposition effect (Shefrin & Statman, 1985): selling winners early, riding losers.
+  const dispositionRatio=avgWinHold>0?avgLossHold/avgWinHold:(avgLossHold>0?3:1);
+
+  // Revenge trading: an oversized BUY (>=1.6x your own median clip) placed shortly after a loss.
+  const sizes=trades.map(t=>t.usd).filter(u=>u>0).sort((a,b)=>a-b);
+  const medSize=sizes.length?sizes[Math.floor(sizes.length/2)]:0;
+  const windowTicks=6, windowMs=3*3600000;
+  const revenge=[];
+  for(const c of closed){
+    if(c.pnl>=0)continue;
+    const chase=trades.find(t=>t.side==='BUY'&&t.usd>medSize*1.6&&(importedMode?(t.ts-c.ts>=0&&t.ts-c.ts<=windowMs):(t.i-c.i>=0&&t.i-c.i<=windowTicks)));
+    if(chase)revenge.push(chase.sym+' '+fmtUSD(chase.usd,0));
+  }
+
+  // FOMO: buying a symbol after it has already spiked >=8% off its own recent low.
+  let fomoBuys=0,totalBuys=0;
+  for(const t of trades){
+    if(t.side!=='BUY')continue;totalBuys++;
+    const a=bySym(t.sym),lo=Math.max(0,t.i-24),hist=a.hist.slice(lo,t.i+1);
+    if(!hist.length)continue;
+    const minP=Math.min(...hist);
+    if(minP>0&&t.price>=minP*1.08)fomoBuys++;
+  }
+  const fomoRate=totalBuys?fomoBuys/totalBuys:0;
+
+  // Overconfidence: does a 2-win streak inflate the size of the very next buy?
+  const byTime=[...closed].sort((a,b)=>a.i-b.i);
+  let streaks=0,sizedUp=0;
+  for(let k=2;k<byTime.length;k++){
+    if(byTime[k-1].pnl>0&&byTime[k-2].pnl>0){
+      streaks++;
+      const nxt=trades.find(t=>t.side==='BUY'&&t.i>byTime[k-1].i);
+      if(nxt&&nxt.usd>medSize*1.3)sizedUp++;
+    }
+  }
+  const overconfRate=streaks?sizedUp/streaks:null;
+
+  // Tilt: how many losses in a row, right now, at the end of the tape.
+  let tiltStreak=0;
+  for(let k=byTime.length-1;k>=0;k--){if(byTime[k].pnl<0)tiltStreak++;else break;}
+
+  // Mood-tagged outcomes (self-reported, matched to the trade it was tagged on).
+  const moodStats={};
+  for(const[key]of MOODS){
+    const tagged=moodLog.filter(m=>m.mood===key);
+    const outcomes=tagged.map(m=>closed.find(c=>c.sym===m.sym&&Math.abs(c.entryPrice-m.price)<1e-9)).filter(Boolean);
+    if(outcomes.length)moodStats[key]={n:outcomes.length,winRate:outcomes.filter(o=>o.pnl>0).length/outcomes.length};
+  }
+
+  // Overtrading heatmap: 24 real-clock hour buckets, trade count in each.
+  const heat=new Array(24).fill(0);
+  for(const t of trades){const h=new Date(t.ts).getUTCHours();heat[h]++;}
+
+  psych={dispositionRatio,avgWinHold,avgLossHold,revenge,fomoRate,fomoBuys,totalBuys,overconfRate,streaks,tiltStreak,moodStats,heat,
+    winCount:wins.length,lossCount:losses.length};
+}
+
+function renderPsych(){
+  const p=psych,rows=[];
+  if(p.winCount+p.lossCount>=1){
+    const fmtH=h=>h<48?h.toFixed(1)+'H':(h/24).toFixed(1)+'D';
+    rows.push(`<div class="psych-row"><span class="pl">DISPOSITION EFFECT</span><span class="pv ${p.dispositionRatio>1.5?'dn':p.dispositionRatio<0.8?'up':''}">${p.dispositionRatio.toFixed(2)}×</span>
+      <span class="pd">WINNERS HELD ${fmtH(p.avgWinHold)} · LOSERS HELD ${fmtH(p.avgLossHold)}${p.dispositionRatio>1.5?' — YOU RIDE LOSERS LONGER THAN WINNERS. THE #1 BIAS IN BEHAVIORAL FINANCE.':' — NO CLEAR BIAS TOWARD BAGHOLDING.'}</span></div>`);
+  }
+  if(p.totalBuys>0){
+    const pct=Math.round(p.fomoRate*100);
+    rows.push(`<div class="psych-row"><span class="pl">FOMO SCORE</span><span class="pv ${pct>35?'dn':pct>18?'amb':'up'}">${pct}%</span>
+      <span class="pd">${p.fomoBuys} OF ${p.totalBuys} BUYS CHASED AN 8%+ SPIKE OFF THE RECENT LOW</span></div>`);
+  }
+  rows.push(`<div class="psych-row"><span class="pl">REVENGE TRADES</span><span class="pv ${p.revenge.length?'dn':'up'}">${p.revenge.length}</span>
+    <span class="pd">${p.revenge.length?'OVERSIZED BUY WITHIN HOURS OF A LOSS — '+p.revenge.slice(0,3).join(', '):'NO OVERSIZED CHASE AFTER A LOSS DETECTED'}</span></div>`);
+  if(p.overconfRate!=null){
+    const pct=Math.round(p.overconfRate*100);
+    rows.push(`<div class="psych-row"><span class="pl">OVERCONFIDENCE</span><span class="pv ${pct>50?'dn':'up'}">${pct}%</span>
+      <span class="pd">OF THE TIME, A 2-WIN STREAK (${p.streaks} SEEN) PUSHED YOUR NEXT CLIP SIZE UP 30%+</span></div>`);
+  }
+  const moodRows=MOODS.filter(([k])=>p.moodStats[k]).map(([k,l])=>{
+    const s=p.moodStats[k],wr=Math.round(s.winRate*100);
+    return `<div class="psych-row"><span class="pl">TAGGED "${l}"</span><span class="pv ${wr<45?'dn':'up'}">${wr}% WIN</span><span class="pd">${s.n} TRADE${s.n===1?'':'S'} CLOSED WITH THIS MOOD TAGGED AT ENTRY</span></div>`;
+  }).join('');
+  R.psychPanel.innerHTML=`<span class="hl">TRADING PSYCHOLOGY</span><span class="hsub">PATTERNS COMPUTED FROM YOUR OWN FILLS — NOT A PERSONALITY QUIZ</span>
+    ${rows.join('')}${moodRows}
+    ${p.tiltStreak>=3?`<div class="psych-tilt"><b>YOU'RE ON TILT</b> — ${p.tiltStreak} LOSSES IN A ROW. THE DATA SAYS THIS IS EXACTLY WHEN SIZE CREEPS UP. CONSIDER STEPPING AWAY BEFORE THE NEXT ENTRY.</div>`:''}
+    <div class="psych-mood">${MOODS.map(([k,l])=>`<button data-mood="${k}" class="${selectedMood===k?'sel':''}">${l}</button>`).join('')}</div>
+    <div class="hsub" style="margin-top:8px">TAG YOUR NEXT TRADE ON THE DESK — CLEARS AFTER ONE FILL</div>
+    <div class="psych-heat" title="Trades by hour of day (UTC)">${p.heat.map(n=>{const m=Math.max(...p.heat,1);return `<i style="background:${n?`rgba(200,255,62,${0.15+0.75*(n/m)})`:'var(--line2)'}" title="${n} trade${n===1?'':'s'}"></i>`;}).join('')}</div>`;
+  R.psychPanel.querySelectorAll('[data-mood]').forEach(b=>b.addEventListener('click',()=>{
+    selectedMood=selectedMood===b.dataset.mood?null:b.dataset.mood;renderPsych();
+  }));
+}
+
 /* ================= AI CO-PILOT (DNA tier feature) ================= */
 function typeOut(el,txt){
   el.textContent='';let i=0;
@@ -1721,9 +1844,10 @@ R.btnExec.addEventListener('click',()=>{
   if(desk.side==='BUY'&&amt>cash+1e-6){toast('INSUFFICIENT CASH — '+fmtUSD(cash,0)+' AVAILABLE','err');return;}
   if(desk.side==='SELL'){const pv=(holdings[desk.sym]||0)*bySym(desk.sym).hist[tickCount];
     if(pv<10){toast('NO '+desk.sym+' POSITION TO SELL','err');return;}}
-  const r=execTrade(tickCount,desk.sym,desk.side,amt);
+  const r=execTrade(tickCount,desk.sym,desk.side,amt,undefined,undefined,desk.side==='BUY'?selectedMood:null);
   if(!r){toast('ORDER REJECTED','err');return;}
-  recomputeLive();computeDNA();renderDNA();renderAll();animateDNA();
+  selectedMood=null;
+  recomputeLive();computeDNA();computePsych();renderDNA();renderPsych();renderAll();animateDNA();
   toast('FILLED · '+desk.side+' '+fmtQty(r.qty)+' '+desk.sym+' @ '+fmtUSD(r.price)+' · '+fmtUSD(r.usd));
 });
 R.positions.addEventListener('click',e=>{
@@ -1731,7 +1855,7 @@ R.positions.addEventListener('click',e=>{
   const sym=b.dataset.s,price=bySym(sym).hist[tickCount],usd=(holdings[sym]||0)*price;
   if(usd<1)return;
   const r=execTrade(tickCount,sym,'SELL',usd);
-  if(r){recomputeLive();computeDNA();renderDNA();renderAll();animateDNA();
+  if(r){recomputeLive();computeDNA();computePsych();renderDNA();renderPsych();renderAll();animateDNA();
     toast('POSITION CLOSED · '+sym+' · '+fmtUSD(r.usd));}
 });
 
@@ -2075,7 +2199,7 @@ function applyImport(text,startCash){
     if(res)applied++;else sellSkipped++;
   }
   setImported(true);
-  buildSeries();updateBetas();computeDNA();renderDNA();
+  buildSeries();updateBetas();computeDNA();computePsych();renderDNA();renderPsych();
   clearMC();updateMCBtn();
   setLive();animateDNA();
   R.csvModal.hidden=true;resetDropzone();
@@ -2088,7 +2212,7 @@ function resetDemo(){
   trades.length=0;lots.length=0;closed.length=0;
   SEED.forEach(t=>execTrade(t[0],t[1],t[2],t[3]));
   setImported(false);
-  buildSeries();updateBetas();computeDNA();renderDNA();
+  buildSeries();updateBetas();computeDNA();computePsych();renderDNA();renderPsych();
   clearMC();updateMCBtn();
   setLive();animateDNA();
   toast('DEMO BOOK RESTORED — THE 9-DAY BACKSTORY IS BACK ON THE TAPE');
