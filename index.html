@@ -811,13 +811,13 @@ const T0=Date.now()-HIST*MIN_PER_TICK*60000;
 const timeAt=i=>T0+i*MIN_PER_TICK*60000;
 
 const ASSETS=[
- {sym:'BTC', name:'BITCOIN', p0:97412,  vol:0.011,beta:1.00,clr:'#F5A623'},
- {sym:'ETH', name:'ETHEREUM',p0:3421.5, vol:0.014,beta:1.15,clr:'#908CF5'},
- {sym:'SOL', name:'SOLANA',  p0:212.44, vol:0.022,beta:1.35,clr:'#3FCFB4'},
- {sym:'LINK',name:'CHAINLINK',p0:24.82, vol:0.019,beta:1.20,clr:'#4C7DF0'},
- {sym:'AVAX',name:'AVALANCHE',p0:38.17, vol:0.024,beta:1.45,clr:'#E85B47'},
- {sym:'DOGE',name:'DOGECOIN',p0:0.3118, vol:0.030,beta:1.55,clr:'#D9BE55'},
- {sym:'ATOM',name:'COSMOS',  p0:7.94,   vol:0.023,beta:1.30,clr:'#D98CF5'},
+ {sym:'BTC', name:'BITCOIN', p0:97412,  vol:0.00105,beta:1.00,clr:'#F5A623'},
+ {sym:'ETH', name:'ETHEREUM',p0:3421.5, vol:0.00133,beta:1.15,clr:'#908CF5'},
+ {sym:'SOL', name:'SOLANA',  p0:212.44, vol:0.00210,beta:1.35,clr:'#3FCFB4'},
+ {sym:'LINK',name:'CHAINLINK',p0:24.82, vol:0.00182,beta:1.20,clr:'#4C7DF0'},
+ {sym:'AVAX',name:'AVALANCHE',p0:38.17, vol:0.00228,beta:1.45,clr:'#E85B47'},
+ {sym:'DOGE',name:'DOGECOIN',p0:0.3118, vol:0.00287,beta:1.55,clr:'#D9BE55'},
+ {sym:'ATOM',name:'COSMOS',  p0:7.94,   vol:0.00221,beta:1.30,clr:'#D98CF5'},
 ];
 const bySym=s=>ASSETS.find(a=>a.sym===s);
 const mkt={mom:0,vol:1.0};
@@ -825,20 +825,20 @@ let senti=52, tickCount=HIST-1;
 const feed=[];
 
 const TPL=[
- {t:'WHALE WALLET MOVES {A} OFF EXCHANGES',tgt:'maj',dir:1, mag:0.008},
- {t:'SPOT ETF POSTS RECORD WEEKLY INFLOW',tgt:'BTC',dir:1,mag:0.012},
- {t:'LIQUIDITY SWEEP TRIGGERS {A} LONG SQUEEZE',tgt:'alt',dir:-1,mag:0.014},
- {t:'FUNDING RATES FLIP NEGATIVE ACROSS MAJORS',tgt:'maj',dir:1,mag:0.006},
- {t:'REGULATOR PROBES EXCHANGE OVER {A} LISTINGS',tgt:'alt',dir:-1,mag:0.016},
- {t:'{A} NETWORK ACTIVITY HITS ALL-TIME HIGH',tgt:'alt',dir:1,mag:0.009},
- {t:'DORMANT WALLET FROM 2013 AWAKENS',tgt:'BTC',dir:-1,mag:0.009},
- {t:'FED OFFICIAL HINTS AT EARLIER RATE CUTS',tgt:'all',dir:1,mag:0.007},
- {t:'HOT INFLATION PRINT COOLS RISK APPETITE',tgt:'all',dir:-1,mag:0.008},
- {t:'{A} TOKEN UNLOCK CLIFF HITS SUPPLY',tgt:'alt',dir:-1,mag:0.011},
- {t:'OPTIONS SKEW TURNS CALL-HEAVY ON {A}',tgt:'maj',dir:1,mag:0.007},
- {t:'EXCHANGE OUTAGE SPARKS FLASH WICK',tgt:'alt',dir:-1,mag:0.015},
- {t:'{A} ACCUMULATION ADDRESSES RISE SHARPLY',tgt:'alt',dir:1,mag:0.006},
- {t:'MACRO FUND ROTATES INTO LARGE CAPS',tgt:'maj',dir:1,mag:0.006},
+ {t:'WHALE WALLET MOVES {A} OFF EXCHANGES',tgt:'maj',dir:1, mag:0.0014},
+ {t:'SPOT ETF POSTS RECORD WEEKLY INFLOW',tgt:'BTC',dir:1,mag:0.0021},
+ {t:'LIQUIDITY SWEEP TRIGGERS {A} LONG SQUEEZE',tgt:'alt',dir:-1,mag:0.0025},
+ {t:'FUNDING RATES FLIP NEGATIVE ACROSS MAJORS',tgt:'maj',dir:1,mag:0.0010},
+ {t:'REGULATOR PROBES EXCHANGE OVER {A} LISTINGS',tgt:'alt',dir:-1,mag:0.0028},
+ {t:'{A} NETWORK ACTIVITY HITS ALL-TIME HIGH',tgt:'alt',dir:1,mag:0.0016},
+ {t:'DORMANT WALLET FROM 2013 AWAKENS',tgt:'BTC',dir:-1,mag:0.0016},
+ {t:'FED OFFICIAL HINTS AT EARLIER RATE CUTS',tgt:'all',dir:1,mag:0.0012},
+ {t:'HOT INFLATION PRINT COOLS RISK APPETITE',tgt:'all',dir:-1,mag:0.0014},
+ {t:'{A} TOKEN UNLOCK CLIFF HITS SUPPLY',tgt:'alt',dir:-1,mag:0.0019},
+ {t:'OPTIONS SKEW TURNS CALL-HEAVY ON {A}',tgt:'maj',dir:1,mag:0.0012},
+ {t:'EXCHANGE OUTAGE SPARKS FLASH WICK',tgt:'alt',dir:-1,mag:0.0026},
+ {t:'{A} ACCUMULATION ADDRESSES RISE SHARPLY',tgt:'alt',dir:1,mag:0.0010},
+ {t:'MACRO FUND ROTATES INTO LARGE CAPS',tgt:'maj',dir:1,mag:0.0010},
 ];
 function spawnEvent(i){
   const tp=TPL[Math.random()*TPL.length|0];
@@ -853,14 +853,16 @@ function spawnEvent(i){
   if(feed.length>60)feed.shift();
 }
 function stepPrices(){
-  mkt.mom=mkt.mom*0.93+gauss()*0.0013+0.000014;
-  mkt.vol=clamp(mkt.vol+gauss()*0.10,0.55,2.4);
-  const common=mkt.mom+gauss()*0.0009;
+  // Tuned so a compounded 24h (96-tick) move stays in a believable range: a few percent on a
+  // normal day, 8-20% on a genuinely wild one — not the 40-99% swings the old constants produced.
+  mkt.mom=mkt.mom*0.93+gauss()*0.00032+0.000014;
+  mkt.vol=clamp(mkt.vol+gauss()*0.05,0.85,1.25);
+  const common=mkt.mom+gauss()*0.00021;
   for(const a of ASSETS){
     a.v=clamp(a.v+gauss()*a.vol*0.16,a.vol*0.40,a.vol*2.2);
-    let ret=a.beta*common+gauss()*a.v+(a.bias||0)+(a.jump||0);
-    a.jump=0;a.bias=(a.bias||0)*0.82;
-    ret=clamp(ret,-0.10,0.10);
+    let ret=a.beta*common*mkt.vol+gauss()*a.v+(a.bias||0)+(a.jump||0);
+    a.jump=0;a.bias=(a.bias||0)*0.70;
+    ret=clamp(ret,-0.012,0.012);   // per-tick (15-min) cap: real 15-min crypto bars essentially never move 10%
     a.hist.push(a.hist[a.hist.length-1]*Math.exp(ret));
   }
 }
